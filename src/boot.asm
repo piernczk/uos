@@ -27,9 +27,59 @@ multiboot:
     dd FLAGS
     dd CHEKSUM
 
+; let's hope it just works for now
+gdtr:
+    ; null
+    dq 0
+
+    ; kernel code
+    dw 0xFFFF
+    dw 0
+    db 0
+    db 0x9A
+    db 0xCF
+    db 0
+
+    ; kernel data
+    dw 0xFFFF
+    dw 0
+    db 0
+    db 0x92
+    db 0xCF
+    db 0
+
+    ; user code
+    dw 0xFFFF
+    dw 0
+    db 0
+    db 0xFA
+    db 0xCF
+    db 0
+
+    ; user data
+    dw 0xFFFF
+    dw 0
+    db 0
+    db 0xF2
+    db 0xCF
+    db 0
+
+    ; tss
+    dw 0x6B
+    dw TSS
+    db TSS >> 16
+    db 0x89
+    db 0
+    db TSS >> 24
+
+tss:
+TSS equ $-$$
+    resb 0x6C
+
 ALIGN 16
 _start:
     mov esp, stack_top
+    lgdt [gdtr]
     call kernel_main
     cli
 halt:
