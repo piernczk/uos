@@ -196,14 +196,37 @@ impl VgaPoint {
         }
     }
 
+    /// Jumps to the previous character.
+    ///
+    /// If it's on the first character of a line, it invokes [`unscroll`].
+    pub fn prev(&mut self) {
+        if self.x > 0 {
+            self.x -= 1;
+        } else {
+            self.unscroll();
+        }
+    }
+
     /// Jumps to the next character.
     ///
     /// If it's on the last character of a line, it invokes [`scroll`].
     pub fn next(&mut self) {
-        if self.y < VGA_WIDTH - 1 {
+        if self.x < VGA_WIDTH - 1 {
             self.x += 1;
         } else {
             self.scroll();
+        }
+    }
+
+    /// Scrolls the [`VgaPoint`] to the previous line.
+    ///
+    /// If it's on the first line, it wraps to the last one.
+    pub fn unscroll(&mut self) {
+        self.x = VGA_WIDTH - 1;
+        if self.y > 0 {
+            self.y -= 1;
+        } else {
+            self.y = VGA_HEIGHT - 1;
         }
     }
 
@@ -296,13 +319,7 @@ pub fn scroll() {
 /// It uses the currently set [`COLOR`] and returns the new cursor position.
 pub fn print_at(s: &str, mut pos: VgaPoint) -> VgaPoint {
     for b in s.bytes() {
-        put_char_at(b, pos);
-        if pos.index() < (VGA_HEIGHT - 1) * VGA_WIDTH {
-            pos.next();
-        } else {
-            scroll();
-            pos.set_x(0);
-        }
+        pos = put_char_at(b, pos);
     }
     pos
 }
@@ -318,33 +335,53 @@ pub fn print(s: &str) {
 }
 
 /// Puts an entry at the given point.
-#[inline]
-pub fn put_entry_at(entry: VgaEntry, pos: VgaPoint) {
-    unsafe {
-        *BUFFER.add(pos.index() as usize) = entry.into();
+///
+/// Returns the new cursor position.
+pub fn put_entry_at(entry: VgaEntry, mut pos: VgaPoint) -> VgaPoint {
+    match entry.ch {
+        b'\n' => {
+            if pos.y < VGA_HEIGHT - 1 {
+                pos.scroll();
+            } else {
+                pos.y += 1;
+            }
+
+            pos.set_x(0);
+        },
+        b'\t' => pos.x = (pos.x / 8 + 1) * 8,
+        b'\x08' => if pos.index() > 0 {
+            pos.prev();
+            put_entry_at(VgaEntry::new(VgaEntryColor::default(), b' '), pos);
+        }
+        b'\x0C' => clear(),
+        _ => unsafe {
+            *BUFFER.add(pos.index() as usize) = entry.into();
+            if pos.index() < (VGA_HEIGHT - 1) * VGA_WIDTH {
+                pos.next();
+            } else {
+                scroll();
+                pos.set_x(0);
+            }
+        }
     }
+
+    pos
 }
 
 /// Puts an entry at the [`CURSOR`].
 pub fn put_entry(entry: VgaEntry) {
     unsafe {
-        put_entry_at(entry, CURSOR);
-        if CURSOR.index() < (VGA_HEIGHT - 1) * VGA_WIDTH {
-            CURSOR.next();
-        } else {
-            scroll();
-            CURSOR.set_x(0);
-        }
+        CURSOR = put_entry_at(entry, CURSOR);
     }
 }
 
 /// Puts a character at the given point.
 ///
-/// It uses the currently set [`COLOR`].
+/// It uses the currently set [`COLOR`]. Returns the new cursor position.
 #[inline]
-pub fn put_char_at(ch: u8, pos: VgaPoint) {
+pub fn put_char_at(ch: u8, pos: VgaPoint) -> VgaPoint {
     unsafe {
-        put_entry_at(VgaEntry::new(COLOR, ch), pos);
+        put_entry_at(VgaEntry::new(COLOR, ch), pos)
     }
 }
 
