@@ -231,21 +231,19 @@ bitflags! {
 
 impl From<KeyboardState> for LEDState {
     fn from(kbd: KeyboardState) -> Self {
-        unsafe {
-            let mut leds = Self::empty();
+        let mut leds = Self::empty();
 
-            if kbd.scroll_lock {
-                leds |= Self::SCROLL_LOCK;
-            }
-            if kbd.num_lock {
-                leds |= Self::NUM_LOCK;
-            }
-            if kbd.caps_lock {
-                leds |= Self::CAPS_LOCK;
-            }
-
-            leds
+        if kbd.scroll_lock {
+            leds |= Self::SCROLL_LOCK;
         }
+        if kbd.num_lock {
+            leds |= Self::NUM_LOCK;
+        }
+        if kbd.caps_lock {
+            leds |= Self::CAPS_LOCK;
+        }
+
+        leds
     }
 }
 

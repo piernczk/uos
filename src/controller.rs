@@ -61,6 +61,7 @@ pub enum InitError {
 /// Currently it's borked, but everything works without it (at least in QEMU).
 /// For that reason it's private and not invoked anywhere. I left the code just
 /// in case it magically starts working tomorrow.
+#[allow(dead_code)]
 fn init() -> Result<(), InitError> {
     send_command(0xAD); // disable the first port
     send_command(0xA7); // disable the second port
