@@ -279,7 +279,7 @@ impl VgaPoint {
     /// Panics when y is not smaller than 25.
     #[inline]
     pub fn set_y(&mut self, y: u16) {
-        assert!(y < VGA_WIDTH);
+        assert!(y < VGA_HEIGHT);
         self.y = y;
     }
 }
