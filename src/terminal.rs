@@ -2,9 +2,9 @@
 
 /// VGA text buffer located at `0xB8000`.
 pub const BUFFER: *mut u16 = 0xB8000 as *mut u16;
-/// VGA text width, which is `80`.
+/// VGA text width.
 pub const VGA_WIDTH: u16 = 80;
-/// VGA text height, which is `25`.
+/// VGA text height.
 pub const VGA_HEIGHT: u16 = 25;
 
 /// VGA text mode palette.
@@ -70,8 +70,8 @@ impl From<VgaColor> for u8 {
 /// foreground and background colors need only one byte. The 4 higher bits are
 /// the background color and the 4 lower bits are the foreground color.
 ///
-/// Therefore this struct is nothing else than a `u8` with some abstractions.
-/// Also, it's [`repr(transparent)`].
+/// Therefore this struct is nothing else than a `repr(transparent)` `u8` with
+/// some abstractions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct VgaEntryColor(pub u8);
@@ -128,14 +128,10 @@ impl From<VgaEntryColor> for u8 {
 
 /// A single VGA text entry.
 ///
-/// VGA text mode operates on a [buffer](BUFFER), which is in turn a `80x25`
+/// VGA text mode operates on a [buffer](BUFFER), which is by default a `80x25`
 /// grid. Each of its cells is what's known here as an entry. An entry consists
-/// of three parts, from the highest byte: background color, foreground color
-/// and code point.
-///
-/// *Note*: VGA text mode uses [code page 737] by default, not ASCII.
-///
-/// [code page 737]: https://en.wikipedia.org/wiki/Code_page_737
+/// of three parts, from the highest byte: background color (4 bits), foreground
+/// color (4 bits) and code point (8 bits).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 pub struct VgaEntry {
@@ -159,9 +155,9 @@ impl From<VgaEntry> for u16 {
 
 /// Coordinates of a single VGA entry.
 ///
-/// Basically, it's a 2D point limited to a `80x25` rectangle. Due to that,
-/// every [`VgaPoint`] can be assigned to a unique index based on a formula:
-/// `y * 80 + x`.
+/// Basically, it's a 2D point limited to a [`VGA_WIDTH`]`x`[`VGA_HEIGHT`]
+/// rectangle. Due to that, every [`VgaPoint`] can be assigned to a unique index
+/// based on a formula: `y * VGA_WIDTH + x`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VgaPoint {
     x: u16,
@@ -173,8 +169,8 @@ impl VgaPoint {
     ///
     /// # Panics
     ///
-    /// The constructor panics when `x` or `y` doesn't fit in the constraints of
-    /// VGA text mode, see [`VGA_WIDTH`] and [`VGA_HEIGHT`].
+    /// The constructor panics when `x` or `y` doesn't fit in the constraints,
+    /// see [`VGA_WIDTH`] and [`VGA_HEIGHT`].
     #[inline]
     pub const fn new(x: u16, y: u16) -> Self {
         assert!(x < VGA_WIDTH);
@@ -182,11 +178,11 @@ impl VgaPoint {
         Self { x, y }
     }
 
-    /// Constructs a new [`VgaPoint`] from and index.
+    /// Constructs a new [`VgaPoint`] from an index.
     ///
     /// # Panics
     ///
-    /// Panics when the index is not smaller than `80 * 25`.
+    /// Panics when the index is not smaller than `VGA_WIDTH * VGA_HEIGHT`.
     #[inline]
     pub const fn from_index(index: u16) -> Self {
         assert!(index < VGA_WIDTH * VGA_HEIGHT);
@@ -198,7 +194,7 @@ impl VgaPoint {
 
     /// Jumps to the previous character.
     ///
-    /// If it's on the first character of a line, it invokes [`unscroll`].
+    /// If it's on the first character of a line, it invokes [`Self::unscroll`].
     pub fn prev(&mut self) {
         if self.x > 0 {
             self.x -= 1;
@@ -209,7 +205,7 @@ impl VgaPoint {
 
     /// Jumps to the next character.
     ///
-    /// If it's on the last character of a line, it invokes [`scroll`].
+    /// If it's on the last character of a line, it invokes [`Self::scroll`].
     pub fn next(&mut self) {
         if self.x < VGA_WIDTH - 1 {
             self.x += 1;
@@ -259,7 +255,7 @@ impl VgaPoint {
     ///
     /// # Panics
     ///
-    /// Panics when x is not smaller than 80.
+    /// Panics when `x >= VGA_WIDTH`.
     #[inline]
     pub fn set_x(&mut self, x: u16) {
         assert!(x < VGA_WIDTH);
@@ -276,7 +272,7 @@ impl VgaPoint {
     ///
     /// # Panics
     ///
-    /// Panics when y is not smaller than 25.
+    /// Panics when `y >= VGA_HEIGHT`.
     #[inline]
     pub fn set_y(&mut self, y: u16) {
         assert!(y < VGA_HEIGHT);

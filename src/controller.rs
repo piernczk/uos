@@ -35,14 +35,14 @@ pub enum InitError {
     /// The first port doesn't work.
     ///
     /// The controller is perfectly usable even with this error, there's no
-    /// access to this port though. See [`AllPorts`] for the meaning of the
-    /// return code.
+    /// access to this port though. See [`Self::AllPorts`] for the meaning of
+    /// the return code.
     FirstPort(u8),
     /// The second port doesn't work, despite the controller having it.
     ///
     /// The controller is perfectly usable even with this error, there's no
-    /// access to this port though. See [`AllPorts`] for the meaning of the
-    /// return code.
+    /// access to this port though. See [`Self::AllPorts`] for the meaning of
+    /// the return code.
     SecondPort(u8),
     /// None of the present ports work.
     ///

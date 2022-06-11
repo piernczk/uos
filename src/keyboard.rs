@@ -4,7 +4,6 @@ use bitflags::bitflags;
 use crate::controller;
 use num_enum::{TryFromPrimitive, IntoPrimitive};
 
-/// Reads the return data from the keyboard.
 pub use controller::read_byte as read_data;
 
 /// Acknowledge byte sent by the keyboard.
