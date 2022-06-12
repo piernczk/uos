@@ -2,19 +2,30 @@ TARGET = i686-unknown-none
 BUILD_MODE = debug
 BUILD_DIR = target/${TARGET}/${BUILD_MODE}
 
+.PHONY: debug-build release-build build iso all run clean doc
+
 debug-build:
 	cargo build
 
-debug-iso: debug-build
+release-build:
+	cargo build --release
+
+build: ${BUILD_MODE}-build
+
+iso: build
 	grub-file --is-x86-multiboot ${BUILD_DIR}/uos || (echo "Error: uos executable is not Multiboot-capable" && false)
 	mkdir -p ${BUILD_DIR}/isodir/boot/grub
 	cp ${BUILD_DIR}/uos ${BUILD_DIR}/isodir/boot
 	cp src/grub.cfg ${BUILD_DIR}/isodir/boot/grub
 	grub-mkrescue -o ${BUILD_DIR}/uos.iso ${BUILD_DIR}/isodir
 
-debug: debug-iso
+doc:
+	cargo doc
 
-debug-run: debug
+all: iso doc
+run: iso
 	qemu-system-i386 -drive format=raw,file=${BUILD_DIR}/uos.iso
 
-run: ${BUILD_MODE}-run
+clean:
+	cargo clean
+
