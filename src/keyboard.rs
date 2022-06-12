@@ -213,6 +213,27 @@ impl KeyAction {
             KeyAction::Released(key) => key,
         }
     }
+
+    pub fn map(self, state: &mut KeyboardState) -> Option<u8> {
+        match self {
+            Self::Pressed(key) => {
+                if let Some(key_mapped) = key.map(*state) {
+                    return Some(key_mapped);
+                } else if key == Set2Key::LeftShift || key == Set2Key::RightShift {
+                    state.shift = true;
+                }
+            }
+            Self::Released(key) => match key {
+                Set2Key::CapsLock => state.caps_lock = !state.caps_lock,
+                Set2Key::ScrollLock => state.scroll_lock = !state.scroll_lock,
+                Set2Key::NumLock => state.num_lock = !state.num_lock,
+                Set2Key::LeftShift | Set2Key::RightShift => state.shift = false,
+                _ => {},
+            }
+        }
+
+        None
+    }
 }
 
 impl From<u8> for KeyAction {
