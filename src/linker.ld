@@ -3,6 +3,8 @@ OUTPUT_FORMAT(elf32-i386)
 
 SECTIONS
 {
+    . = 1M;
+
     .text : ALIGN(4)
     {
         *(.text)
