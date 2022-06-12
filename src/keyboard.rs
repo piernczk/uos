@@ -38,7 +38,7 @@ pub fn key_action() -> KeyAction {
 }
 
 /// Represents the current keyboard state.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct KeyboardState {
     pub scroll_lock: bool,
     pub num_lock: bool,
@@ -50,7 +50,7 @@ impl KeyboardState {
     /// Checks whether to use uppercase letters.
     #[inline(always)]
     pub fn uppercase(&self) -> bool {
-        self.scroll_lock ^ self.shift
+        self.caps_lock != self.shift
     }
 }
 
@@ -86,21 +86,33 @@ impl Set2Key {
     /// Maps a scan code to a character.
     pub fn map(self, state: KeyboardState) -> Option<u8> {
         let mut b = match self {
-            Set2Key::Digit1 => b'1',
-            Set2Key::Digit2 => b'2',
-            Set2Key::Digit3 => b'3',
-            Set2Key::Digit4 => b'4',
-            Set2Key::Digit5 => b'5',
-            Set2Key::Digit6 => b'6',
-            Set2Key::Digit7 => b'7',
-            Set2Key::Digit8 => b'8',
-            Set2Key::Digit9 => b'9',
-            Set2Key::Digit0 => b'0',
+            Set2Key::Digit1 if !state.shift => b'1',
+            Set2Key::Digit2 if !state.shift => b'2',
+            Set2Key::Digit3 if !state.shift => b'3',
+            Set2Key::Digit4 if !state.shift => b'4',
+            Set2Key::Digit5 if !state.shift => b'5',
+            Set2Key::Digit6 if !state.shift => b'6',
+            Set2Key::Digit7 if !state.shift => b'7',
+            Set2Key::Digit8 if !state.shift => b'8',
+            Set2Key::Digit9 if !state.shift => b'9',
+            Set2Key::Digit0 if !state.shift => b'0',
 
-            Set2Key::Minus if !state.uppercase() => b'-',
-            Set2Key::Minus if state.uppercase() => b'_',
-            Set2Key::Equals if !state.uppercase() => b'=',
-            Set2Key::Equals if state.uppercase() => b'+',
+            Set2Key::Digit1 if state.shift => b'!',
+            Set2Key::Digit2 if state.shift => b'@',
+            Set2Key::Digit3 if state.shift => b'#',
+            Set2Key::Digit4 if state.shift => b'$',
+            Set2Key::Digit5 if state.shift => b'%',
+            Set2Key::Digit6 if state.shift => b'^',
+            Set2Key::Digit7 if state.shift => b'&',
+            Set2Key::Digit8 if state.shift => b'*',
+            Set2Key::Digit9 if state.shift => b'(',
+            Set2Key::Digit0 if state.shift => b')',
+
+            Set2Key::Minus if !state.shift => b'-',
+            Set2Key::Minus if state.shift => b'_',
+            Set2Key::Equals if !state.shift => b'=',
+            Set2Key::Equals if state.shift => b'+',
+
             Set2Key::Backspace => b'\x08',
             Set2Key::Tab => b'\t',
 
@@ -115,8 +127,10 @@ impl Set2Key {
             Set2Key::O => b'o',
             Set2Key::P => b'p',
 
-            Set2Key::LeftSquare => b'[',
-            Set2Key::RightSquare => b']',
+            Set2Key::LeftSquare if !state.shift => b'[',
+            Set2Key::LeftSquare if state.shift => b'{',
+            Set2Key::RightSquare if !state.shift => b']',
+            Set2Key::RightSquare if state.shift => b'}',
 
             Set2Key::Enter => b'\n',
 
@@ -130,14 +144,15 @@ impl Set2Key {
             Set2Key::K => b'k',
             Set2Key::L => b'l',
 
-            Set2Key::Semicolon if !state.uppercase() => b';',
-            Set2Key::Semicolon if state.uppercase() => b':',
-            Set2Key::Apostrophe if !state.uppercase() => b'\'',
-            Set2Key::Apostrophe if state.uppercase() => b'"',
-            Set2Key::Backtick if !state.uppercase() => b'`',
-            Set2Key::Backtick if state.uppercase() => b'~',
+            Set2Key::Semicolon if !state.shift => b';',
+            Set2Key::Semicolon if state.shift => b':',
+            Set2Key::Apostrophe if !state.shift => b'\'',
+            Set2Key::Apostrophe if state.shift => b'"',
+            Set2Key::Backtick if !state.shift => b'`',
+            Set2Key::Backtick if state.shift => b'~',
 
-            Set2Key::Backslash => b'\\',
+            Set2Key::Backslash if !state.shift => b'\\',
+            Set2Key::Backslash if state.shift => b'|',
 
             Set2Key::Z => b'z',
             Set2Key::X => b'x',
@@ -147,12 +162,12 @@ impl Set2Key {
             Set2Key::N => b'n',
             Set2Key::M => b'm',
 
-            Set2Key::Comma if !state.uppercase() => b',',
-            Set2Key::Comma if state.uppercase() => b'<',
-            Set2Key::Dot if !state.uppercase() => b'.',
-            Set2Key::Dot if state.uppercase() => b'>',
-            Set2Key::Slash if !state.uppercase() => b'/',
-            Set2Key::Slash if state.uppercase() => b'?',
+            Set2Key::Comma if !state.shift => b',',
+            Set2Key::Comma if state.shift => b'<',
+            Set2Key::Dot if !state.shift => b'.',
+            Set2Key::Dot if state.shift => b'>',
+            Set2Key::Slash if !state.shift => b'/',
+            Set2Key::Slash if state.shift => b'?',
 
             Set2Key::Space => b' ',
 
@@ -175,7 +190,7 @@ impl Set2Key {
             _ => return None,
         };
 
-        if state.uppercase() && b'a' < b && b < b']' {
+        if state.uppercase() && b'a' <= b && b <= b'z' {
             b &= !(1 << 5);
         }
 
@@ -202,7 +217,7 @@ impl KeyAction {
 
 impl From<u8> for KeyAction {
     fn from(b: u8) -> Self {
-        if b & 128 == 0 {
+        if b & 1 << 7 == 0 {
             KeyAction::Pressed(Set2Key::try_from(b).unwrap())
         } else {
             KeyAction::Released(Set2Key::try_from(b & 127).unwrap())
