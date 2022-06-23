@@ -13,18 +13,18 @@ release-build:
 build: ${BUILD_MODE}-build
 
 iso: build
-	grub-file --is-x86-multiboot ${BUILD_DIR}/uos || (echo "Error: uos executable is not Multiboot-capable" && false)
+	grub-file --is-x86-multiboot ${BUILD_DIR}/ukern || (echo "Error: ukern executable is not Multiboot-capable" && false)
 	mkdir -p ${BUILD_DIR}/isodir/boot/grub
-	cp ${BUILD_DIR}/uos ${BUILD_DIR}/isodir/boot
+	cp ${BUILD_DIR}/ukern ${BUILD_DIR}/isodir/boot
 	cp src/grub.cfg ${BUILD_DIR}/isodir/boot/grub
-	grub-mkrescue -o ${BUILD_DIR}/uos.iso ${BUILD_DIR}/isodir
+	grub-mkrescue -o ${BUILD_DIR}/ukern.iso ${BUILD_DIR}/isodir
 
 doc:
 	cargo doc
 
 all: iso doc
 run: iso
-	qemu-system-i386 -drive format=raw,file=${BUILD_DIR}/uos.iso
+	qemu-system-i386 -drive format=raw,file=${BUILD_DIR}/ukern.iso
 
 clean:
 	cargo clean

@@ -19,6 +19,6 @@ fn main() {
         Err(e) => panic!("boot.asm failed: {}", e)
     }
 
-    println!("cargo:rustc-link-arg=-Tsrc/arch/{}/linker.ld", arch);
+    println!("cargo:rustc-link-arg=-Tukern/src/arch/{}/linker.ld", arch);
     println!("cargo:rustc-link-arg={}/boot.o", out_dir);
 }
