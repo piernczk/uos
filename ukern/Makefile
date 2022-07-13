@@ -1,6 +1,6 @@
 TARGET = i686-unknown-none
 BUILD_MODE = debug
-BUILD_DIR = target/${TARGET}/${BUILD_MODE}
+BUILD_DIR = ../target/${TARGET}/${BUILD_MODE}
 
 .PHONY: debug-build release-build build iso all run clean doc
 
