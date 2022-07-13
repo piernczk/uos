@@ -2,6 +2,7 @@
 #![no_main]
 #![crate_type = "lib"]
 
+pub mod arch;
 pub mod controller;
 pub mod io;
 pub mod keyboard;

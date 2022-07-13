@@ -1,16 +1,8 @@
-MBALIGN   equ 1 << 0 ; align modules on page boundaries (4K)
+MBALIGN equ 1 << 0 ; align modules on page boundaries (4K)
 MEMINFO equ 1 << 1 ; provide memory map or smth
 FLAGS   equ MBALIGN | MEMINFO ; Multiboot flags
 MAGIC   equ 0x1BADB002
 CHEKSUM equ -(MAGIC + FLAGS)
-
-; Provide a 16 KiB stack. It grows downwards on x86. It also must be 16-byte
-; aligned according to SysV ABI standard.
-SECTION .bss
-ALIGN 16
-stack_bottom:
-    resb 16384
-stack_top:
 
 SECTION .text
 GLOBAL _start
@@ -27,6 +19,37 @@ multiboot:
     dd FLAGS
     dd CHEKSUM
 
+ALIGN 16
+_start:
+    mov esp, stack_top
+    lgdt [gdtr]
+    call kernel_main
+    cli
+halt:
+    hlt
+    jmp halt
+
+SECTION .bss
+GLOBAL page_directory
+GLOBAL page_tables
+ALIGN 4096
+page_directory:
+    resb 4096
+page_tables:
+    resb 4096*4096
+
+; Provide a 16 KiB stack. It grows downwards on x86. It also must be 16-byte
+; aligned according to SysV ABI standard.
+ALIGN 16
+stack_bottom:
+    resb 16384
+stack_top:
+
+tss:
+TSS equ $-$$
+    resb 0x6C
+
+SECTION .rodata
 ; let's hope it just works for now
 gdtr:
     ; null
@@ -71,17 +94,3 @@ gdtr:
     db 0x89
     db 0
     db TSS >> 24
-
-tss:
-TSS equ $-$$
-    resb 0x6C
-
-ALIGN 16
-_start:
-    mov esp, stack_top
-    lgdt [gdtr]
-    call kernel_main
-    cli
-halt:
-    hlt
-    jmp halt
