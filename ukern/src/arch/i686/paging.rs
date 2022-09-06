@@ -87,23 +87,28 @@ impl PageMapEntry for Ai686PageDirectoryEntry {
     const AVL_SIZE: u8 = 5;
     const LOWEST: bool = false;
 
+    #[inline]
     fn init(&mut self) {
         self.0 &= !AI686_PDE_FLAG_PS;
     }
 
+    #[inline]
     fn get_pointer(&self) -> *mut Ai686PageTable {
         (self.0 & AI686_PDE_MASK_ADDR) as *mut Ai686PageTable
     }
 
+    #[inline]
     fn set_pointer(&mut self, addr: *mut Ai686PageTable) {
         self.0 &= !AI686_PDE_MASK_ADDR;
         self.0 |= (addr as u32) & AI686_PDE_MASK_ADDR
     }
 
+    #[inline]
     fn is_present(&self) -> bool {
         self.0 & AI686_PDE_FLAG_P != 0
     }
 
+    #[inline]
     fn set_present(&mut self, p: bool) {
         if p {
             self.0 |= AI686_PDE_FLAG_P;
@@ -112,10 +117,12 @@ impl PageMapEntry for Ai686PageDirectoryEntry {
         }
     }
 
+    #[inline]
     fn is_writable(&self) -> bool {
         self.0 & AI686_PDE_FLAG_RW != 0
     }
 
+    #[inline]
     fn set_writable(&mut self, rw: bool) {
         if rw {
             self.0 |= AI686_PDE_FLAG_RW;
@@ -124,10 +131,12 @@ impl PageMapEntry for Ai686PageDirectoryEntry {
         }
     }
 
+    #[inline]
     fn is_supervisor_only(&self) -> bool {
         self.0 & AI686_PDE_FLAG_US == 0
     }
 
+    #[inline]
     fn set_supervisor_only(&mut self, us: bool) {
         if us {
             self.0 |= AI686_PDE_FLAG_US;
@@ -136,10 +145,12 @@ impl PageMapEntry for Ai686PageDirectoryEntry {
         }
     }
 
+    #[inline]
     fn is_write_through_enabled(&self) -> bool {
         self.0 & AI686_PDE_FLAG_PWT != 0
     }
 
+    #[inline]
     fn set_write_through_enabled(&mut self, pwt: bool) {
         if pwt {
             self.0 |= AI686_PDE_FLAG_PWT;
@@ -148,10 +159,12 @@ impl PageMapEntry for Ai686PageDirectoryEntry {
         }
     }
 
+    #[inline]
     fn is_cache_disabled(&self) -> bool {
         self.0 & AI686_PDE_FLAG_PCD != 0
     }
 
+    #[inline]
     fn set_cache_disabled(&mut self, pcd: bool) {
         if pcd {
             self.0 |= AI686_PDE_FLAG_PCD;
@@ -160,18 +173,22 @@ impl PageMapEntry for Ai686PageDirectoryEntry {
         }
     }
 
+    #[inline]
     fn was_accessed(&self) -> bool {
         self.0 & AI686_PDE_FLAG_A != 0
     }
 
+    #[inline]
     fn clear_accessed(&mut self) {
         self.0 &= !AI686_PDE_FLAG_A
     }
 
+    #[inline]
     fn get_avl(&self) -> u16 {
         (((self.0 & 64) >> 6) | ((self.0 & 0b1111_0000_0000) >> 7)) as u16
     }
 
+    #[inline]
     fn set_avl(&mut self, avl: u16) {
         self.0 = (self.0 & !AI686_PDE_MASK_AVL) | (((avl as u32) & 1) << 6) | (((avl as u32) & 0b11110) << 8)
     }
@@ -185,23 +202,28 @@ impl PageMapEntry for Ai686PageTableEntry {
     const AVL_SIZE: u8 = 3;
     const LOWEST: bool = true;
 
+    #[inline]
     fn init(&mut self) {
         self.0 &= !AI686_PTE_FLAG_D;
     }
 
+    #[inline]
     fn get_pointer(&self) -> *mut Ai686Page {
         (self.0 & AI686_PTE_MASK_ADDR) as *mut Ai686Page
     }
 
+    #[inline]
     fn set_pointer(&mut self, addr: *mut Ai686Page) {
         self.0 &= !AI686_PTE_MASK_ADDR;
         self.0 |= (addr as u32) & AI686_PTE_MASK_ADDR;
     }
 
+    #[inline]
     fn is_present(&self) -> bool {
         self.0 & AI686_PTE_FLAG_P != 0
     }
 
+    #[inline]
     fn set_present(&mut self, p: bool) {
         if p {
             self.0 |= AI686_PTE_FLAG_P;
@@ -210,10 +232,12 @@ impl PageMapEntry for Ai686PageTableEntry {
         }
     }
 
+    #[inline]
     fn is_writable(&self) -> bool {
         self.0 & AI686_PTE_FLAG_RW != 0
     }
 
+    #[inline]
     fn set_writable(&mut self, rw: bool) {
         if rw {
             self.0 |= AI686_PTE_FLAG_RW;
@@ -222,10 +246,12 @@ impl PageMapEntry for Ai686PageTableEntry {
         }
     }
 
+    #[inline]
     fn is_supervisor_only(&self) -> bool {
         self.0 & AI686_PTE_FLAG_US == 0
     }
 
+    #[inline]
     fn set_supervisor_only(&mut self, us: bool) {
         if us {
             self.0 |= AI686_PTE_FLAG_US;
@@ -234,10 +260,12 @@ impl PageMapEntry for Ai686PageTableEntry {
         }
     }
 
+    #[inline]
     fn is_write_through_enabled(&self) -> bool {
         self.0 & AI686_PTE_FLAG_PWT != 0
     }
 
+    #[inline]
     fn set_write_through_enabled(&mut self, pwt: bool) {
         if pwt {
             self.0 |= AI686_PTE_FLAG_PWT;
@@ -246,10 +274,12 @@ impl PageMapEntry for Ai686PageTableEntry {
         }
     }
 
+    #[inline]
     fn is_cache_disabled(&self) -> bool {
         self.0 & AI686_PTE_FLAG_PCD != 0
     }
 
+    #[inline]
     fn set_cache_disabled(&mut self, pcd: bool) {
         if pcd {
             self.0 |= AI686_PTE_FLAG_PCD;
@@ -258,18 +288,22 @@ impl PageMapEntry for Ai686PageTableEntry {
         }
     }
 
+    #[inline]
     fn was_accessed(&self) -> bool {
         self.0 & AI686_PTE_FLAG_A != 0
     }
 
+    #[inline]
     fn clear_accessed(&mut self) {
         self.0 &= !AI686_PTE_FLAG_A;
     }
 
+    #[inline]
     fn get_avl(&self) -> u16 {
         (self.0 & AI686_PTE_MASK_AVL >> 9) as u16
     }
 
+    #[inline]
     fn set_avl(&mut self, avl: u16) {
         self.0 &= !AI686_PTE_MASK_AVL;
         self.0 |= (avl as u32) << 9;
