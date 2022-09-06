@@ -81,11 +81,11 @@ impl PageMap<u8> for Ai686Page {
 
 impl PageMapEntry for Ai686PageDirectoryEntry {
     type Header = u32;
-    type Lower = Ai686PageTableEntry;
+    type Sector = Ai686PageTableEntry;
     type Points = Ai686PageTable;
 
     const AVL_SIZE: u8 = 5;
-    const LOWEST: bool = false;
+    const LOWEST_SECTOR: bool = false;
 
     #[inline]
     fn init(&mut self) {
@@ -196,11 +196,11 @@ impl PageMapEntry for Ai686PageDirectoryEntry {
 
 impl PageMapEntry for Ai686PageTableEntry {
     type Header = u32;
-    type Lower = u8;
+    type Sector = u8;
     type Points = Ai686Page;
 
     const AVL_SIZE: u8 = 3;
-    const LOWEST: bool = true;
+    const LOWEST_SECTOR: bool = true;
 
     #[inline]
     fn init(&mut self) {

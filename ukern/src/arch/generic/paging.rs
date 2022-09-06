@@ -4,11 +4,11 @@ pub trait PageMap<Entry> {
 
 pub trait PageMapEntry: Sized {
     type Header;
-    type Lower;
-    type Points: PageMap<Self::Lower>;
+    type Sector;
+    type Points: PageMap<Self::Sector>;
 
     const AVL_SIZE: u8;
-    const LOWEST: bool;
+    const LOWEST_SECTOR: bool;
 
     fn init(&mut self);
     unsafe fn from_header(header: &mut Self::Header) -> &mut Self {
