@@ -1,7 +1,7 @@
 //! VGA text mode terminal.
 
 /// VGA text buffer located at `0xB8000`.
-pub const BUFFER: *mut u16 = 0xB8000 as *mut u16;
+pub const BUFFER: *mut VgaEntry = 0xB8000 as *mut VgaEntry;
 /// VGA text width.
 pub const VGA_WIDTH: u16 = 80;
 /// VGA text height.
@@ -130,13 +130,13 @@ impl From<VgaEntryColor> for u8 {
 ///
 /// VGA text mode operates on a [buffer](BUFFER), which is by default a `80x25`
 /// grid. Each of its cells is what's known here as an entry. An entry consists
-/// of three parts, from the highest byte: background color (4 bits), foreground
+/// of three parts, from the highest bit: background color (4 bits), foreground
 /// color (4 bits) and code point (8 bits).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 pub struct VgaEntry {
-    pub color: VgaEntryColor,
     pub ch: u8,
+    pub color: VgaEntryColor,
 }
 
 impl VgaEntry {
@@ -289,7 +289,7 @@ pub static mut COLOR: VgaEntryColor = VgaEntryColor::new(VgaColor::Black, VgaCol
 pub fn clear() {
     unsafe {
         for i in 0..(VGA_WIDTH * VGA_HEIGHT) {
-            *BUFFER.add(i as usize) = 0;
+            *BUFFER.add(i as usize) = VgaEntry::new(COLOR, 0);
         }
         CURSOR = VgaPoint::new(0, 0);
     }
@@ -337,6 +337,7 @@ pub fn put_entry_at(entry: VgaEntry, mut pos: VgaPoint) -> VgaPoint {
     match entry.ch {
         b'\n' => {
             if pos.y < VGA_HEIGHT - 1 {
+                put_entry_at(VgaEntry::new(entry.color, b' '), pos);
                 pos.scroll();
             } else {
                 pos.y += 1;
@@ -346,8 +347,13 @@ pub fn put_entry_at(entry: VgaEntry, mut pos: VgaPoint) -> VgaPoint {
         },
         b'\t' => pos.x = (pos.x / 8 + 1) * 8,
         b'\x08' => if pos.index() > 0 {
-            pos.prev();
-            put_entry_at(VgaEntry::new(VgaEntryColor::default(), b' '), pos);
+            loop {
+                pos.prev();
+                if unsafe { (*BUFFER.add(pos.index() as usize)).ch } != 0 {
+                    break;
+                }
+            }
+            put_entry_at(VgaEntry::new(VgaEntryColor::default(), 0), pos);
         }
         b'\x0C' => clear(),
         _ => unsafe {
