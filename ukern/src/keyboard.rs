@@ -1,10 +1,10 @@
 //! PS/2 keyboard driver.
 
 use bitflags::bitflags;
-use crate::controller;
+use crate::ps2;
 use num_enum::{TryFromPrimitive, IntoPrimitive};
 
-pub use controller::read_byte as read_data;
+pub use ps2::read_byte as read_data;
 
 /// Acknowledge byte sent by the keyboard.
 pub const ACK: u8 = 0xFA;
@@ -13,13 +13,13 @@ pub const RESEND: u8 = 0xFE;
 
 /// Sends a command to the keyboard.
 ///
-/// It's a wrapper around [`controller::send_byte`] that also checks for the
+/// It's a wrapper around [`ps2::send_byte`] that also checks for the
 /// [`RESEND`] byte.
 pub fn send_command(command: u8) {
     let mut res = RESEND;
     while res == RESEND {
-        controller::send_byte(command);
-        res = controller::read_byte();
+        ps2::send_byte(command);
+        res = ps2::read_byte();
     }
 }
 
@@ -285,8 +285,8 @@ impl From<KeyboardState> for LEDState {
 /// Sets keyboard's LED state.
 #[inline]
 pub fn set_led_state(leds: LEDState) {
-    send_command(0xED);
     send_data(leds.bits());
+    send_command(0xED);
 }
 
 /// Scan code sets.
