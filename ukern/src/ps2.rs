@@ -144,7 +144,7 @@ pub fn send_command(command: u8) {
 
 /// Waits until one is able to read the [`DATA_PORT`].
 pub fn wait_read() {
-    let mut status = 0;
+   let mut status = 0;
     while status & 1 == 0 {
         status = inb(STATUS_PORT);
     }

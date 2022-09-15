@@ -6,7 +6,7 @@
 
 use core::intrinsics;
 use core::panic::PanicInfo;
-use uos::terminal;
+use ukern::{keyboard, terminal, arch};
 
 /// Panic handler.
 #[panic_handler]
@@ -31,11 +31,21 @@ extern "C" fn rust_eh_personality() {}
 /// Don't touch it btw.
 #[no_mangle]
 #[ignore = "snake_case"]
-extern "C" fn _Unwind_Resume() {
-}
+extern "C" fn _Unwind_Resume() {}
 
 /// The main function of the high-level kernel.
 #[no_mangle]
 fn kernel_main() {
-    terminal::print("Hello, world!");
+    unsafe { arch::paging::init(); }
+
+    let mut kbd_state = keyboard::KeyboardState::default();
+    terminal::clear();
+    terminal::print("uOS\n");
+    loop {
+        let action = keyboard::key_action();
+        if let Some(c) = action.map(&mut kbd_state) {
+            terminal::put_char(c);
+        }
+        keyboard::set_led_state(kbd_state.into());
+    }
 }
