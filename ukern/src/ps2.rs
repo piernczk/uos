@@ -4,6 +4,7 @@
 //! for things like A20 Adress Line and system reset, for some reason.
 
 use crate::io::*;
+use crate::terminal;
 
 /// The number of the I/O bus port used for sending data to the controller
 /// and devices.
@@ -61,21 +62,22 @@ pub enum InitError {
 /// Currently it's borked, but everything works without it (at least in QEMU).
 /// For that reason it's private and not invoked anywhere. I left the code just
 /// in case it magically starts working tomorrow.
-#[allow(dead_code)]
-fn init() -> Result<(), InitError> {
+///
+/// nvm it works now.
+pub fn init() -> Result<(), InitError> {
     send_command(0xAD); // disable the first port
     send_command(0xA7); // disable the second port
-    read_byte(); // flush
+    inb(DATA_PORT); // flush
 
     // controller configuration byte
     send_command(0x20);
     let ccb = read_byte();
-    let new_ccb = ccb & 0b0011_0100;
+    let new_ccb = ccb & 0b0011_1101;
 
-    let not_dual_channel = ccb & 1 << 5 == 0;
+    let not_dual_channel = ccb & (1 << 5) == 0;
 
-    send_byte(new_ccb); // disable all IRQs and translation
     send_command(0x60);
+    send_byte(new_ccb); // disable all IRQs and translation
 
     // self test
     send_command(0xAA);
@@ -85,11 +87,12 @@ fn init() -> Result<(), InitError> {
     }
 
     // could restart
-    send_byte(new_ccb);
     send_command(0x60);
+    send_byte(new_ccb);
 
     if !not_dual_channel {
         send_command(0xAE); // enable the second port
+        send_command(0x20);
         unsafe {
             DUAL_CHANNEL = read_byte() & 1 << 5 == 0;
         }
