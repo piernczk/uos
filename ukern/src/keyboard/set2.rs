@@ -1,12 +1,27 @@
+//! PS/2 set 2 scancodes.
 use super::keycodes::*;
 
+/// The extension byte.
+///
+/// There was too many scancodes to fit in one byte so they reserved this one to
+/// let you wait for the next byte.
 pub const BYTE2: u8 = 0xE0;
+/// The release byte.
+///
+/// Makes the scancode a release and not a press.
 pub const RELEASE: u8 = 0xF0;
 
+/// Print screen pressed.
 pub const PRTSCR_PRESSED: [u8; 8] = [0xE0, 0x12, 0xE0, 0x7C, 0x00, 0x00, 0x00, 0x00];
+/// Print screen released.
 pub const PRTSCR_RELEASED: [u8; 8] = [0xE0, 0xF0, 0x7C, 0xE0, 0xF0, 0x12, 0x00, 0x00];
+/// Pause pressed and released.
+///
+/// They really couldn't fit this in like 300 of the reserved values so they just
+/// made an 8-byte scancode because frick it why not.
 pub const PAUSE: [u8; 8] = [0xE1, 0x14, 0x77, 0xE1, 0xF0, 0x14, 0xF0, 0x77];
 
+/// The set 2 scancodes.
 pub static SCANCODE_SET2: [u16; 256] = [
     KEY_RESERVED, KEY_F9, KEY_RESERVED, KEY_F5, KEY_F3, KEY_F1, KEY_F2, KEY_F12,
     KEY_RESERVED, KEY_F10, KEY_F8, KEY_F6, KEY_F4, KEY_TAB, KEY_GRAVE, KEY_RESERVED,
@@ -42,6 +57,10 @@ pub static SCANCODE_SET2: [u16; 256] = [
     KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
 ];
 
+/// The set 2 scancodes, vol. II.
+///
+/// If a scancode start with the [`BYTE2`] byte, this table should be used
+/// instead of [`SCANCODE_SET2`].
 pub static SCANCODE_SET2_BYTE2: [u16; 256] = [
     KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED, KEY_RESERVED,
     KEY_RESERVED, KEY_RESERVED, KEY_SEARCH, KEY_RIGHTALT, KEY_RESERVED, KEY_RESERVED, KEY_RIGHTCTRL, KEY_PREVIOUSSONG,

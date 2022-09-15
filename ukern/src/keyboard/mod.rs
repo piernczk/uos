@@ -9,13 +9,12 @@ use crate::ps2;
 use num_enum::{TryFromPrimitive, IntoPrimitive};
 
 use crate::io;
-use crate::terminal;
 
 /// Acknowledge byte sent by the keyboard.
 pub const ACK: u8 = 0xFA;
 /// A byte sent by the keyboard when it asks to resend the command or data.
 pub const RESEND: u8 = 0xFE;
-
+/// The currently set scan code.
 pub static mut SCANCODE_SET: ScanCodeSet = ScanCodeSet::Set2;
 
 /// Sends a command to the keyboard.
@@ -30,6 +29,9 @@ pub fn send_command(command: u8) {
     }
 }
 
+/// Reads a stream of 8-byte data.
+///
+/// It's the length of the longest set 2 scan code.
 pub fn read_data() -> [u8; 8] {
     let mut bytes = [0u8; 8];
     let mut status = 0;
@@ -81,6 +83,7 @@ pub fn key_action() -> KeyAction {
         }
         _ => KeyAction::Pressed(keycodes::KEY_RESERVED)
     };
+
     keyaction
 }
 
@@ -117,6 +120,12 @@ impl KeyAction {
         }
     }
 
+    /// Maps a `KeyAction` to a character and changes the keyboard state.
+    ///
+    /// Returns `Ok` with the character if the keycode has one and `Err` with the
+    /// keycode if it doesn't.
+    ///
+    /// See [`layout::map`].
     pub fn map(self, state: &mut KeyboardState) -> Result<u8, u16> {
         match self {
             Self::Pressed(key) => {

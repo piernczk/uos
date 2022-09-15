@@ -1,5 +1,10 @@
-use super::KeyboardState; use super::keycodes::*;
+//! The standard US keyboard layout.
+use super::{KeyAction, KeyboardState};
+use super::keycodes::*;
 
+/// Maps a keycode to its 8-bit character given the keyboard state.
+///
+/// See [`KeyAction::map`].
 pub fn map(keycode: u16, state: KeyboardState) -> Result<u8, u16> {
     let key = match keycode {
         KEY_GRAVE if !state.shift => Ok(b'`'),

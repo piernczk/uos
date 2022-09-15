@@ -1,3 +1,7 @@
+//! List of all the keycodes.
+//!
+//! Slightly inspired by the Linux kernel keycodes.
+
 pub const KEY_RESERVED: u16 = 0;
 pub const KEY_ESC: u16 = 1;
 pub const KEY_1: u16 = 2;
