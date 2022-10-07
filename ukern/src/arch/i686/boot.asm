@@ -6,7 +6,9 @@ CHEKSUM equ -(MAGIC + FLAGS)
 
 SECTION .text
 GLOBAL _start
+GLOBAL enable_paging
 EXTERN kernel_main
+GLOBAL load_gdtr
 
 ; Declare Multiboot headers which GRUB will search for.
 ; They have to be in the first 8 KiB of the kernel file and 4-bytes aligned.
@@ -22,21 +24,51 @@ multiboot:
 ALIGN 16
 _start:
     mov esp, stack_top
-    lgdt [gdtr]
     call kernel_main
     cli
 halt:
     hlt
     jmp halt
 
+enable_paging:
+    ; set the CR3 register to point at the page_directory
+    mov eax, PAGE_DIRECTORY
+    mov cr3, eax
+
+    ; set the CR0.PE (Paging Enable) bit
+    mov eax, cr0
+    or eax, 0x80000000
+    mov cr0, eax
+    ret
+
+load_gdtr:
+    lgdt [GDTR]
+    jmp 0x08:reload_cs ; far jump to the kernel code segment 0x08
+reload_cs:
+    ; set data registers to point at the kernel data segment 0x10
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    mov ss, ax
+    ret
+
 SECTION .bss
-GLOBAL page_directory
-GLOBAL page_tables
+GLOBAL PAGE_DIRECTORY
+GLOBAL PAGE_TABLES
+GLOBAL ESP0
+GLOBAL GDTR
+GLOBAL GDT
+GLOBAL IDTR
+GLOBAL IDT
+GLOBAL TSS
+
 ALIGN 4096
-page_directory:
-    resb 4096
-page_tables:
-    resb 4096*4096
+PAGE_DIRECTORY:
+    resd 1024
+PAGE_TABLES:
+    resd 1023 * 1024 ; the last PDE is used for recursive paging
 
 ; Provide a 16 KiB stack. It grows downwards on x86. It also must be 16-byte
 ; aligned according to SysV ABI standard.
@@ -44,53 +76,17 @@ ALIGN 16
 stack_bottom:
     resb 16384
 stack_top:
+; temporary TSS stack
+ESP0:
+    resb 16384
 
-tss:
-TSS equ $-$$
+TSS:
     resb 0x6C
-
-SECTION .rodata
-; let's hope it just works for now
-gdtr:
-    ; null
-    dq 0
-
-    ; kernel code
-    dw 0xFFFF
-    dw 0
-    db 0
-    db 0x9A
-    db 0xCF
-    db 0
-
-    ; kernel data
-    dw 0xFFFF
-    dw 0
-    db 0
-    db 0x92
-    db 0xCF
-    db 0
-
-    ; user code
-    dw 0xFFFF
-    dw 0
-    db 0
-    db 0xFA
-    db 0xCF
-    db 0
-
-    ; user data
-    dw 0xFFFF
-    dw 0
-    db 0
-    db 0xF2
-    db 0xCF
-    db 0
-
-    ; tss
-    dw 0x6B
-    dw TSS
-    db TSS >> 16
-    db 0x89
-    db 0
-    db TSS >> 24
+GDTR:
+    resq 1
+GDT:
+    resq 6
+IDTR:
+    resq 1
+IDT:
+    resq 256
