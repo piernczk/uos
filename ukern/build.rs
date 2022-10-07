@@ -1,24 +1,28 @@
+use std::collections::HashMap;
 use std::env;
 use std::process::Command;
 
 fn main() {
-    let profile = env::var("PROFILE").unwrap();
     let out_dir = env::var("OUT_DIR").unwrap();
     let target = env::var("TARGET").unwrap();
     let arch = target.split('-').next().unwrap();
 
-    let mut bootcmp = Command::new("nasm");
-    bootcmp.args([&format!("src/arch/{}/boot.asm", arch), "-felf32", "-o", &format!("{}/boot.o", out_dir)]);
+    let asm = HashMap::from([
+        ("i686", ["boot", "int"])
+    ]);
 
-    if profile == "release" {
-        bootcmp.arg("-O3");
-    }
+    for file in asm[arch] {
+        let mut cmd = Command::new("nasm");
+        cmd.args([&format!("src/arch/{}/{}.asm", arch, file), "-felf32", "-O3", "-o", &format!("{}/{}.o", out_dir, file)]);
 
-    match bootcmp.output() {
-        Ok(out) => println!("boot.asm succeeded: {}", String::from_utf8_lossy(&out.stderr)),
-        Err(e) => panic!("boot.asm failed: {}", e)
+        match cmd.output() {
+            Ok(out) => println!("{}.asm succeeded: {}", file, String::from_utf8_lossy(&out.stderr)),
+            Err(e) => panic!("{}.asm failed: {}", file, e)
+        }
+
+        println!("cargo:rerun-if-changed=src/arch/{}/{}.asm", arch, file);
+        println!("cargo:rustc-link-arg={}/{}.o", out_dir, file);
     }
 
     println!("cargo:rustc-link-arg=-Tukern/src/arch/{}/linker.ld", arch);
-    println!("cargo:rustc-link-arg={}/boot.o", out_dir);
 }
