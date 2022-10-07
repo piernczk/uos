@@ -17,6 +17,13 @@ pub const RESEND: u8 = 0xFE;
 /// The currently set scan code.
 pub static mut SCANCODE_SET: ScanCodeSet = ScanCodeSet::Set2;
 
+pub static mut STATE: KeyboardState = KeyboardState {
+    caps_lock: false,
+    num_lock: false,
+    scroll_lock: false,
+    shift: false,
+};
+
 /// Sends a command to the keyboard.
 ///
 /// It's a wrapper around [`ps2::send_byte`] that also checks for the
@@ -126,25 +133,28 @@ impl KeyAction {
     /// keycode if it doesn't.
     ///
     /// See [`layout::map`].
-    pub fn map(self, state: &mut KeyboardState) -> Result<u8, u16> {
-        match self {
-            Self::Pressed(key) => {
-                if let Ok(key_mapped) = layout::map(key, *state) {
-                    return Ok(key_mapped);
-                } else if key == keycodes::KEY_LEFTSHIFT || key == keycodes::KEY_RIGHTSHIFT {
-                    state.shift = true;
+    pub fn map(self) -> Result<u8, u16> {
+        unsafe {
+            match self {
+                Self::Pressed(key) => {
+                    if let Ok(key_mapped) = layout::map(key, STATE) {
+                        return Ok(key_mapped);
+                    } else if key == keycodes::KEY_LEFTSHIFT || key == keycodes::KEY_RIGHTSHIFT {
+                        STATE.shift = true;
+                    }
+                }
+                Self::Released(key) => match key {
+                    keycodes::KEY_CAPSLOCK => STATE.caps_lock = !STATE.caps_lock,
+                    keycodes::KEY_SCROLLLOCK => STATE.scroll_lock = !STATE.scroll_lock,
+                    keycodes::KEY_NUMLOCK => STATE.num_lock = !STATE.num_lock,
+                    keycodes::KEY_LEFTSHIFT | keycodes::KEY_RIGHTSHIFT => STATE.shift = false,
+                    _ => return Err(self.key()),
                 }
             }
-            Self::Released(key) => match key {
-                keycodes::KEY_CAPSLOCK => state.caps_lock = !state.caps_lock,
-                keycodes::KEY_SCROLLLOCK => state.scroll_lock = !state.scroll_lock,
-                keycodes::KEY_NUMLOCK => state.num_lock = !state.num_lock,
-                keycodes::KEY_LEFTSHIFT | keycodes::KEY_RIGHTSHIFT => state.shift = false,
-                _ => {},
-            }
-        }
 
-        Err(self.key())
+            set_led_state(STATE.into());
+            Err(self.key())
+        }
     }
 }
 

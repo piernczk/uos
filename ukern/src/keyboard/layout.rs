@@ -1,5 +1,5 @@
 //! The standard US keyboard layout.
-use super::{KeyAction, KeyboardState};
+use super::KeyboardState;
 use super::keycodes::*;
 
 /// Maps a keycode to its 8-bit character given the keyboard state.
