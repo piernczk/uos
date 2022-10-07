@@ -2,8 +2,14 @@
 
 use core::arch::asm;
 
-/// x86 I/O bus port type (`u8`).
-type IOPort = u8;
+/// x86 I/O bus port type.
+pub type IOPort = u16;
+
+/// Wait a very small amount of time by writing to `0x80`.
+#[inline]
+pub fn wait() {
+    outb(0x80, 0);
+}
 
 /// Gets a byte from the I/O bus.
 pub fn inb(port: IOPort) -> u8 {
@@ -12,7 +18,7 @@ pub fn inb(port: IOPort) -> u8 {
     unsafe {
         asm!(
             "in al, dx",
-            in("dx") port as u16,
+            in("dx") port,
             out("al") ret
         );
     }
@@ -25,7 +31,7 @@ pub fn outb(port: IOPort, data: u8) {
     unsafe {
         asm!(
             "out dx, al",
-            in("dx") port as u16,
+            in("dx") port,
             in("al") data
         )
     }
@@ -38,7 +44,7 @@ pub fn inw(port: IOPort) -> u16 {
     unsafe {
         asm!(
             "in ax, dx",
-            in("dx") port as u16,
+            in("dx") port,
             out("ax") ret
         );
     }
@@ -51,20 +57,20 @@ pub fn outw(port: IOPort, data: u16) {
     unsafe {
         asm!(
             "out dx, ax",
-            in("dx") port as u16,
+            in("dx") port,
             in("ax") data
         )
     }
 }
 
 /// Gets a double word from the I/O bus.
-pub fn ind(port: IOPort) -> u32 {
+pub fn inl(port: IOPort) -> u32 {
     let ret;
 
     unsafe {
         asm!(
             "in eax, dx",
-            in("dx") port as u16,
+            in("dx") port,
             out("eax") ret
         );
     }
@@ -73,11 +79,11 @@ pub fn ind(port: IOPort) -> u32 {
 } 
 
 /// Sends a double word to the given I/O bus port.
-pub fn outd(port: IOPort, data: u32) {
+pub fn outl(port: IOPort, data: u32) {
     unsafe {
         asm!(
             "out dx, eax",
-            in("dx") port as u16,
+            in("dx") port,
             in("eax") data
         )
     }
