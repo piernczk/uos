@@ -1,11 +1,13 @@
 //! VGA text mode terminal.
 
+use crate::io;
+
 /// VGA text buffer located at `0xB8000`.
 pub const BUFFER: *mut VgaEntry = 0xB8000 as *mut VgaEntry;
 /// VGA text width.
-pub const VGA_WIDTH: u16 = 80;
+pub const VGA_WIDTH: u8 = 80;
 /// VGA text height.
-pub const VGA_HEIGHT: u16 = 25;
+pub const VGA_HEIGHT: u8 = 25;
 
 /// VGA text mode palette.
 ///
@@ -160,8 +162,7 @@ impl From<VgaEntry> for u16 {
 /// based on a formula: `y * VGA_WIDTH + x`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VgaPoint {
-    x: u16,
-    y: u16,
+    index: u16,
 }
 
 impl VgaPoint {
@@ -172,10 +173,10 @@ impl VgaPoint {
     /// The constructor panics when `x` or `y` doesn't fit in the constraints,
     /// see [`VGA_WIDTH`] and [`VGA_HEIGHT`].
     #[inline]
-    pub const fn new(x: u16, y: u16) -> Self {
+    pub const fn new(x: u8, y: u8) -> Self {
         assert!(x < VGA_WIDTH);
         assert!(y < VGA_HEIGHT);
-        Self { x, y }
+        Self { index: (y as u16) * (VGA_WIDTH as u16) + (x as u16) }
     }
 
     /// Constructs a new [`VgaPoint`] from an index.
@@ -185,21 +186,19 @@ impl VgaPoint {
     /// Panics when the index is not smaller than `VGA_WIDTH * VGA_HEIGHT`.
     #[inline]
     pub const fn from_index(index: u16) -> Self {
-        assert!(index < VGA_WIDTH * VGA_HEIGHT);
-        Self {
-            x: index % VGA_WIDTH,
-            y: index / VGA_WIDTH,
-        }
+        assert!(index < (VGA_WIDTH as u16) * (VGA_HEIGHT as u16));
+        Self { index }
     }
 
     /// Jumps to the previous character.
     ///
     /// If it's on the first character of a line, it invokes [`Self::unscroll`].
     pub fn prev(&mut self) {
-        if self.x > 0 {
-            self.x -= 1;
+        if self.x() > 0 {
+            self.index -= 1;
         } else {
             self.unscroll();
+            self.index += VGA_WIDTH as u16 - 1;
         }
     }
 
@@ -207,10 +206,11 @@ impl VgaPoint {
     ///
     /// If it's on the last character of a line, it invokes [`Self::scroll`].
     pub fn next(&mut self) {
-        if self.x < VGA_WIDTH - 1 {
-            self.x += 1;
+        if self.x() != VGA_WIDTH - 1 {
+            self.index += 1;
         } else {
             self.scroll();
+            self.index -= self.x() as u16;
         }
     }
 
@@ -218,11 +218,10 @@ impl VgaPoint {
     ///
     /// If it's on the first line, it wraps to the last one.
     pub fn unscroll(&mut self) {
-        self.x = VGA_WIDTH - 1;
-        if self.y > 0 {
-            self.y -= 1;
+        if self.y() > 0 {
+            self.index -= VGA_WIDTH as u16;
         } else {
-            self.y = VGA_HEIGHT - 1;
+            self.index = (self.x() as u16) + (VGA_WIDTH as u16) * (VGA_HEIGHT as u16 - 1);
         }
     }
 
@@ -230,25 +229,28 @@ impl VgaPoint {
     ///
     /// If it's on the last line, it simply wraps to 0 again.
     pub fn scroll(&mut self) {
-        self.x = 0;
-
-        if self.y < VGA_HEIGHT - 1 {
-            self.y += 1;
+        if self.y() < VGA_HEIGHT - 1 {
+            self.index += VGA_WIDTH as u16;
         } else {
-            self.y = 0;
+            self.index = self.x() as u16;
         }
     }
 
     /// Returns the index.
     #[inline]
     pub fn index(self) -> u16 {
-        self.y * VGA_WIDTH + self.x
+        self.index
+    }
+
+    pub fn set_index(&mut self, index: u16) {
+        assert!(index < VGA_WIDTH as u16 * VGA_HEIGHT as u16);
+        self.index = index;
     }
 
     /// Returns the x coordinate.
     #[inline]
-    pub fn x(self) -> u16 {
-        self.x
+    pub fn x(self) -> u8 {
+        (self.index % (VGA_WIDTH as u16)) as u8
     }
 
     /// Sets the x coordinate.
@@ -257,15 +259,16 @@ impl VgaPoint {
     ///
     /// Panics when `x >= VGA_WIDTH`.
     #[inline]
-    pub fn set_x(&mut self, x: u16) {
+    pub fn set_x(&mut self, x: u8) {
         assert!(x < VGA_WIDTH);
-        self.x = x;
+        self.index -= self.x() as u16;
+        self.index += x as u16;
     }
 
     /// Returns the y coordinate.
     #[inline]
-    pub fn y(self) -> u16 {
-        self.y
+    pub fn y(self) -> u8 {
+        (self.index / (VGA_WIDTH as u16)) as u8
     }
 
     /// Sets the y coordinate.
@@ -274,25 +277,85 @@ impl VgaPoint {
     ///
     /// Panics when `y >= VGA_HEIGHT`.
     #[inline]
-    pub fn set_y(&mut self, y: u16) {
+    pub fn set_y(&mut self, y: u8) {
         assert!(y < VGA_HEIGHT);
-        self.y = y;
+        self.index = (y as u16) * (VGA_WIDTH as u16) + (self.x() as u16);
     }
 }
 
+/// Whether the graphical cursor is enabled or not.
+static mut CURSOR_ENABLED: bool = false;
 /// The current cursor position.
-pub static mut CURSOR: VgaPoint = VgaPoint::new(0, 0);
+static mut CURSOR: VgaPoint = VgaPoint::new(0, 0);
 /// The current foreground and background colors.
 pub static mut COLOR: VgaEntryColor = VgaEntryColor::new(VgaColor::Black, VgaColor::White);
+
+/// Set the cursor position.
+///
+/// If the graphical cursor is enabled, it automatically updates its position.
+pub fn set_cursor(pos: VgaPoint) {
+    unsafe {
+        CURSOR = pos;
+        if CURSOR_ENABLED {
+            io::outb(0x3D4, 0x0F);
+            io::outb(0x3D5, pos.index() as u8);
+
+            io::outb(0x3D4, 0x0E);
+            io::outb(0x3D5, (pos.index() >> 8) as u8);
+        }
+    }
+}
+
+/// Returns the cursor position.
+#[inline(always)]
+pub fn get_cursor() -> VgaPoint {
+    unsafe { CURSOR }
+}
 
 /// Clears the buffer and sets the cursor to `(0, 0)`.
 pub fn clear() {
     unsafe {
-        for i in 0..(VGA_WIDTH * VGA_HEIGHT) {
+        for i in 0..(VGA_WIDTH as u16 * VGA_HEIGHT as u16) {
             *BUFFER.add(i as usize) = VgaEntry::new(COLOR, 0);
         }
-        CURSOR = VgaPoint::new(0, 0);
     }
+    set_cursor(VgaPoint::new(0, 0));
+}
+
+/// Enables the graphical cursor.
+pub fn enable_cursor() {
+	io::outb(0x3D4, 0x0A);
+	io::outb(0x3D5, 0);
+ 
+	io::outb(0x3D4, 0x0B);
+	io::outb(0x3D5, 31);
+
+    unsafe {
+        CURSOR_ENABLED = true;
+    }
+
+    set_cursor(get_cursor()); // refresh the position
+}
+
+/// Disables the graphical cursor.
+pub fn disable_cursor() {
+    io::outb(0x3D4, 0x0A);
+    io::outb(0x3D5, 0x20);
+
+    unsafe {
+        CURSOR_ENABLED = false;
+    }
+}
+
+/// Whether the graphical cursor is enabled or not.
+pub fn is_cursor_enabled() -> bool {
+    unsafe { CURSOR_ENABLED }
+}
+
+/// Initialize the terminal.
+pub fn init() {
+    enable_cursor();
+    clear();
 }
 
 /// Scrolls the buffer.
@@ -300,13 +363,21 @@ pub fn clear() {
 /// Every line is moved upwards. The cursor position is updated accordingly.
 pub fn scroll() {
     unsafe {
-        for i in 0..(VGA_WIDTH * (VGA_HEIGHT - 1)) {
-            *BUFFER.add(i as usize) = *BUFFER.add((i + VGA_WIDTH) as usize);
+        let last_line = VGA_WIDTH as u16 * (VGA_HEIGHT as u16 - 1);
+        for i in (VGA_WIDTH as u16)..last_line {
+            *BUFFER.add(i as usize) = *BUFFER.add(i as usize + VGA_WIDTH as usize);
         }
 
-        if CURSOR.y() > 0 {
-            CURSOR.set_y(CURSOR.y() - 1);
+        for i in 0..VGA_WIDTH {
+            *BUFFER.add((i as u16) as usize) = VgaEntry::new(COLOR, 0);
+            *BUFFER.add((i as u16 + last_line) as usize) = VgaEntry::new(COLOR, 0);
         }
+    }
+
+    let mut cursor = get_cursor();
+    if cursor.y() > 0 {
+        cursor.set_y(cursor.y() - 1);
+        set_cursor(cursor);
     }
 }
 
@@ -320,14 +391,12 @@ pub fn print_at(s: &str, mut pos: VgaPoint) -> VgaPoint {
     pos
 }
 
-/// Prints a string at the [`CURSOR`].
+/// Prints a string at the cursor position.
 ///
 /// It uses the currently set [`COLOR`].
 #[inline]
 pub fn print(s: &str) {
-    unsafe {
-        CURSOR = print_at(s, CURSOR)
-    }
+    set_cursor(print_at(s, get_cursor()));
 }
 
 /// Puts an entry at the given point.
@@ -336,16 +405,16 @@ pub fn print(s: &str) {
 pub fn put_entry_at(entry: VgaEntry, mut pos: VgaPoint) -> VgaPoint {
     match entry.ch {
         b'\n' => {
-            if pos.y < VGA_HEIGHT - 1 {
-                put_entry_at(VgaEntry::new(entry.color, b' '), pos);
+            put_entry_at(VgaEntry::new(entry.color, b' '), pos);
+            if pos.y() < VGA_HEIGHT - 1 {
                 pos.scroll();
             } else {
-                pos.y += 1;
+                scroll();
             }
 
             pos.set_x(0);
         },
-        b'\t' => pos.x = (pos.x / 8 + 1) * 8,
+        b'\t' => pos.set_x((pos.x() / 8 + 1) * 8),
         b'\x08' => if pos.index() > 0 {
             loop {
                 pos.prev();
@@ -358,11 +427,10 @@ pub fn put_entry_at(entry: VgaEntry, mut pos: VgaPoint) -> VgaPoint {
         b'\x0C' => clear(),
         _ => unsafe {
             *BUFFER.add(pos.index() as usize) = entry.into();
-            if pos.index() < (VGA_HEIGHT - 1) * VGA_WIDTH {
-                pos.next();
-            } else {
+            pos.next();
+            if pos.y() >= VGA_HEIGHT - 1 {
                 scroll();
-                pos.set_x(0);
+                pos.unscroll();
             }
         }
     }
@@ -370,11 +438,9 @@ pub fn put_entry_at(entry: VgaEntry, mut pos: VgaPoint) -> VgaPoint {
     pos
 }
 
-/// Puts an entry at the [`CURSOR`].
+/// Puts an entry at the cursor position.
 pub fn put_entry(entry: VgaEntry) {
-    unsafe {
-        CURSOR = put_entry_at(entry, CURSOR);
-    }
+    set_cursor(put_entry_at(entry, get_cursor()));
 }
 
 /// Puts a character at the given point.
@@ -387,7 +453,7 @@ pub fn put_char_at(ch: u8, pos: VgaPoint) -> VgaPoint {
     }
 }
 
-/// Puts a character at the [`CURSOR`].
+/// Puts a character at the cursor position.
 ///
 /// It uses the currently set [`COLOR`].
 #[inline]
