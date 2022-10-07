@@ -3,7 +3,8 @@
 #![crate_type = "lib"]
 
 pub mod arch;
-pub mod ps2;
 pub mod io;
 pub mod keyboard;
+pub mod ps2;
+pub mod sound;
 pub mod terminal;
