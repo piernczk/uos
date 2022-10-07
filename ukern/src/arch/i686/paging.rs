@@ -1,4 +1,4 @@
-use crate::arch::generic::paging::*;
+use crate::arch::{self, generic::paging::*};
 
 pub const AI686_PDE_MASK_ADDR: u32 = !0b1111_1111_1111;
 pub const AI686_PDE_MASK_AVL: u32 = 0b1111_0100_0000;
@@ -22,31 +22,54 @@ pub const AI686_PTE_FLAG_PCD: u32 = 1 << 4;
 pub const AI686_PTE_FLAG_A: u32 = 1 << 5;
 pub const AI686_PTE_FLAG_D: u32 = 1 << 6;
 
+pub const KERNEL_ALLOC: usize = 2;
+
 extern "C" {
-    static mut page_directory: Ai686PageDirectory;
-    static mut page_tables: [Ai686PageTable; 1024];
+    static mut PAGE_DIRECTORY: Ai686PageDirectory;
+    static mut PAGE_TABLES: [Ai686PageTable; 1023];
+
+    fn enable_paging();
 }
 
 pub type HighestTable = Ai686PageDirectory;
 pub type HighestEntry = Ai686PageDirectoryEntry;
 
-pub unsafe fn init() -> *mut Ai686PageDirectory {
-    let mut i = 0;
-    for pde in &mut page_directory.0 {
+unsafe fn init_paging() {
+    // init paging
+    for (i, pde) in (&mut PAGE_DIRECTORY.0).into_iter().take(1023).enumerate() {
         pde.init();
-        pde.set_pointer(&mut page_tables[i] as *mut _);
+        pde.set_pointer(&mut PAGE_TABLES[i] as *mut _);
 
-        let mut j = 0;
-        for pte in &mut page_tables[i].0 {
+        for (j, pte) in (&mut PAGE_TABLES[i].0).into_iter().enumerate() {
             pte.init();
-            pte.set_pointer((j * (10 << 12)) as *mut Ai686Page);
-            j += 1;
+            pte.set_pointer(((i << 22) | (j << 12)) as *mut Ai686Page);
         }
-
-        i += 1;
     }
 
-    &mut page_directory as *mut _
+    // setup recursive paging
+    PAGE_DIRECTORY.0[1023].init();
+    PAGE_DIRECTORY.0[1023].set_pointer(&mut PAGE_DIRECTORY as *mut _ as *mut Ai686PageTable);
+
+    // alloc first few MiB for the kernel
+    // TODO auto detect the count of needed pages in the linker script
+    for (i, pde) in (&mut PAGE_DIRECTORY.0).into_iter().take(KERNEL_ALLOC).enumerate() {
+        pde.set_supervisor_only(true);
+        pde.set_present(true);
+
+        for pte in &mut PAGE_TABLES[i].0 {
+            pte.set_supervisor_only(true);
+            pte.set_present(true);
+        }
+    }
+
+    enable_paging();
+}
+
+pub unsafe fn init() -> *mut Ai686PageDirectory {
+    arch::gdt::init();
+    init_paging();
+    arch::tss::init();
+    &mut PAGE_DIRECTORY as *mut _
 }
 
 #[derive(Debug, Clone)]
