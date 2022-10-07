@@ -1,5 +1,5 @@
 pub mod gdt;
-pub mod idt;
+pub mod int;
 pub mod paging;
 pub mod pit;
 pub mod tss;
