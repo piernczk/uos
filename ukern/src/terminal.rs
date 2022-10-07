@@ -462,3 +462,14 @@ pub fn put_char(ch: u8) {
         put_entry(VgaEntry::new(COLOR, ch))
     }
 }
+
+pub fn put_byte(ch: u8) {
+    unsafe {
+        *BUFFER.add(CURSOR.index() as usize) = VgaEntry::new(COLOR, ch).into();
+        CURSOR.next();
+        if CURSOR.y() >= VGA_HEIGHT - 1 {
+            scroll();
+            CURSOR.unscroll();
+        }
+    }
+}
