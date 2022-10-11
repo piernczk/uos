@@ -1,10 +1,20 @@
+//! The Task State Segment.
+//!
+//! The TSS is used for multitasking which is not yet implemented here.
+
 use core::arch::asm;
 
 extern "C" {
+    /// The Task State Segment.
+    ///
+    /// There is usually one TSS per process (the old way, there are too few
+    /// segments in the [GDT](crate::arch::gdt)) or one per CPU.
     pub static mut TSS: TaskStateSegment;
+    /// The TSS stack.
     pub static mut ESP0: [u8; 16384];
 }
 
+/// The Task State Segment structure.
 #[derive(Debug, Clone)]
 #[repr(C)]
 pub struct TaskStateSegment {
@@ -51,6 +61,7 @@ pub struct TaskStateSegment {
     pub iopb: u16,
 }
 
+/// Initializes the TSS.
 pub unsafe fn init() {
     TSS = core::mem::zeroed::<TaskStateSegment>();
     asm!("ltr ax", in("ax") 0x28);

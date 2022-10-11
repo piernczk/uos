@@ -1,3 +1,11 @@
+//! i686 paging.
+//!
+//! The highest [`PageMap`] on i686 is the [`PageDirectory`]. It has 1024
+//! [`PageDirectoryEntry`]es, each pointing to a [`PageTable`]. They also have
+//! 1024 entries ([`PageTagleEntry`]), but they point to 4 KiB pages. This means
+//! that i686 supports up to `1024 * 1024 * 4 KiB = 4 GiB` virtual memory
+//! (assuming the PAE is disabled, and it is for now).
+
 use crate::arch::{self, generic::paging::*};
 
 pub const PDE_MASK_ADDR: u32 = !0b1111_1111_1111;
@@ -22,6 +30,9 @@ pub const PTE_FLAG_PCD: u32 = 1 << 4;
 pub const PTE_FLAG_A: u32 = 1 << 5;
 pub const PTE_FLAG_D: u32 = 1 << 6;
 
+/// How many page directories to allocate for the kernel.
+///
+/// A temporary thing.
 pub const KERNEL_ALLOC: usize = 2;
 
 extern "C" {
@@ -31,7 +42,7 @@ extern "C" {
     fn enable_paging();
 }
 
-pub type HighestTable = PageDirectory;
+pub type HighestMap = PageDirectory;
 pub type HighestEntry = PageDirectoryEntry;
 
 unsafe fn init_paging() {
@@ -65,6 +76,9 @@ unsafe fn init_paging() {
     enable_paging();
 }
 
+/// Initializes paging, the [GDT](arch::gdt) and the [TSS](arch::tss).
+///
+/// Returns the address of the page directory.
 pub unsafe fn init() -> *mut PageDirectory {
     arch::gdt::init();
     init_paging();
