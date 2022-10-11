@@ -1,13 +1,13 @@
 use core::arch::asm;
 
 extern "C" {
-    pub static mut TSS: Ai686TaskStateSegment;
+    pub static mut TSS: TaskStateSegment;
     pub static mut ESP0: [u8; 16384];
 }
 
 #[derive(Debug, Clone)]
 #[repr(C)]
-pub struct Ai686TaskStateSegment {
+pub struct TaskStateSegment {
     pub link: u32,
 
     pub esp0: u32,
@@ -52,7 +52,7 @@ pub struct Ai686TaskStateSegment {
 }
 
 pub unsafe fn init() {
-    TSS = core::mem::zeroed::<Ai686TaskStateSegment>();
+    TSS = core::mem::zeroed::<TaskStateSegment>();
     asm!("ltr ax", in("ax") 0x28);
 
     TSS.ss0 = 0x10;
@@ -63,5 +63,5 @@ pub unsafe fn init() {
     TSS.fs = 0x13;
     TSS.gs = 0x13;
     TSS.ss = 0x13;
-    TSS.iopb = core::mem::size_of::<Ai686TaskStateSegment>() as u16;
+    TSS.iopb = core::mem::size_of::<TaskStateSegment>() as u16;
 }

@@ -2,8 +2,8 @@ use crate::arch;
 
 extern "C" {
     #[allow(improper_ctypes)]
-    pub static mut GDTR: Ai686GDTRegister;
-    pub static mut GDT: [Ai686GDTDescriptor; 6];
+    pub static mut GDTR: GDTRegister;
+    pub static mut GDT: [GDTDescriptor; 6];
 
     fn load_gdtr();
 }
@@ -41,7 +41,7 @@ pub unsafe fn init() {
 
     // task state segment
     GDT[5].set_base(&arch::tss::TSS as *const _ as u32);
-    GDT[5].set_limit(core::mem::size_of::<arch::tss::Ai686TaskStateSegment>() as u32);
+    GDT[5].set_limit(core::mem::size_of::<arch::tss::TaskStateSegment>() as u32);
     GDT[5].set_access_byte(0x89);
     GDT[5].set_flags(0x0);
 
@@ -53,7 +53,7 @@ pub unsafe fn init() {
 
 #[derive(Debug, Clone)]
 #[repr(C)]
-pub struct Ai686GDTDescriptor {
+pub struct GDTDescriptor {
     limit0: u16,
     base0: u16,
     base1: u8,
@@ -62,7 +62,7 @@ pub struct Ai686GDTDescriptor {
     base2: u8,
 }
 
-impl Ai686GDTDescriptor {
+impl GDTDescriptor {
     pub fn get_limit(&self) -> u32 {
         (self.limit0 as u32) | (((self.limit1flags & 0b1111) as u32) << 16)
     }
@@ -102,7 +102,7 @@ impl Ai686GDTDescriptor {
 }
 
 #[repr(packed)]
-pub struct Ai686GDTRegister {
+pub struct GDTRegister {
     pub size: u16,
     pub offset: u32,
 }
