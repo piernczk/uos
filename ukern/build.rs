@@ -24,5 +24,6 @@ fn main() {
         println!("cargo:rustc-link-arg={}/{}.o", out_dir, file);
     }
 
+    println!("cargo:rerun-if-changed=src/arch/{}/linker.ld", arch);
     println!("cargo:rustc-link-arg=-Tukern/src/arch/{}/linker.ld", arch);
 }

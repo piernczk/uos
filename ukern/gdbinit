@@ -1,0 +1,6 @@
+target remote :1234
+set disassembly-flavor intel
+symbol-file ../target/i686-unknown-none/debug/ukern
+dir src
+layout src
+focus cmd

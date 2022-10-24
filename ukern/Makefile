@@ -24,8 +24,10 @@ doc:
 
 all: iso doc
 run: iso
-	qemu-system-i386 -drive format=raw,file=${BUILD_DIR}/ukern.iso
+	qemu-system-i386 -audiodev pa,id=pa -machine pcspk-audiodev=pa -drive format=raw,file=${BUILD_DIR}/ukern.iso
+debug:
+	qemu-system-i386 -s -S -audiodev pa,id=pa -machine pcspk-audiodev=pa -drive format=raw,file=${BUILD_DIR}/ukern.iso &
+	gdb -x gdbinit
 
 clean:
 	cargo clean
-
