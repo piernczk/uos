@@ -14,6 +14,66 @@
 //!   - ```HighestEntry: PageMapEntry```
 //! - functions:
 //!   - ```init() -> *mut HighestMap```
+//! - methods:
+//!   - ```PhysicalAddress::virtual_addr() -> *const VirtualSymbol```
+
+/// A symbol with a virtual address.
+///
+/// Used when there was a virtual address without a type defined as a symbol,
+/// like `KERNEL_END` in `i686/linker.ld`. Could just use `()` but it's more
+/// convenient to distinct it from [`PhysicalSymbol`].
+pub struct VirtualSymbol;
+
+impl VirtualSymbol {
+    /// Returns the address of this symbol.
+    ///
+    /// The same as [&symbol as *const _`].
+    pub fn virtual_addr(&self) -> *const Self {
+        self as *const Self
+    }
+}
+
+/// A symbol with a physical address.
+///
+/// Used when there was a physical address defined as a symbol, like
+/// `KERNEL_END_PHYS` in `i686/linker.ld`. Also used to safely convert its
+/// physical address to a virtual one (assuming it's a static kernel symbol)
+/// with [`PhysicalAddress::virtual_addr`], regardless of the architecture.
+pub struct PhysicalSymbol;
+
+impl PhysicalSymbol {
+    /// Returns the physical address of this symbol.
+    pub fn physical_addr(&self) -> PhysicalSymbolAddress {
+        PhysicalAddress(self as *const Self)
+    }
+
+    /// Returns the virtual address of this symbol.
+    ///
+    /// See [`PhysicalAddress::virtual_addr`].
+    pub fn virtual_addr(&self) -> *const VirtualSymbol {
+        self.physical_addr().virtual_addr()
+    }
+}
+
+/// The physical address of a symbol.
+///
+/// Used to differentiate physical addresses from virtual ones (simple pointers
+/// like `*const _` and `*const _`).
+#[repr(transparent)]
+pub struct PhysicalAddress<T>(pub *const T);
+pub type PhysicalSymbolAddress = PhysicalAddress<PhysicalSymbol>;
+
+impl<T> PhysicalAddress<T> {
+    pub fn symbol_address(self) -> PhysicalSymbolAddress {
+        PhysicalAddress(self.0 as *const PhysicalSymbol)
+    }
+}
+
+impl PhysicalSymbolAddress {
+    pub fn typed_address<T>(self) -> PhysicalAddress<T> {
+        PhysicalAddress(self.0 as *const T)
+    }
+}
 
 /// A map of [`PageMapEntry`]s or a single page.
 ///
@@ -56,9 +116,9 @@ pub trait PageMapEntry: Sized {
     }
 
     /// Returns the page / page map it points to.
-    fn get_pointer(&self) -> *mut Self::Points;
+    fn get_pointer(&self) -> PhysicalAddress<Self::Points>;
     /// Makes the entry point to the given page / page map.
-    fn set_pointer(&mut self, addr: *mut Self::Points);
+    fn set_pointer(&mut self, addr: PhysicalAddress<Self::Points>);
 
     /// Returns whether or not this page / page map is used at the moment.
     ///

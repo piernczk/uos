@@ -6,12 +6,6 @@ use crate::keyboard;
 use crate::arch::{pit, util};
 
 extern "C" {
-    /// The Interrupt Descriptor Table Register.
-    #[allow(improper_ctypes)]
-    static mut IDTR: IDTRegister;
-    /// The Interrupt Descriptor Table.
-    static mut IDT: [GateDescriptor; 256];
-
     /// The IRQ wrappers.
     #[allow(improper_ctypes)]
     static IRQS: [*const fn(); 16];
@@ -19,6 +13,12 @@ extern "C" {
     #[allow(improper_ctypes)]
     static EXCEPTIONS: [*const fn(); 32];
 }
+
+/// The Interrupt Descriptor Table Register.
+#[no_mangle]
+static mut IDTR: IDTRegister = IDTRegister { size: 0, offset: 0 };
+/// The Interrupt Descriptor Table.
+static mut IDT: [GateDescriptor; 256] = unsafe { core::mem::transmute([0u64; 256]) };
 
 /// The "base" I/O port of the master Programmable Interrupt Controller.
 ///

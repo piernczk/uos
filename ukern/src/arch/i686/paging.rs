@@ -7,6 +7,7 @@
 //! (assuming the PAE is disabled, and it is for now).
 
 use crate::arch::{self, generic::paging::*};
+use core::arch::asm;
 
 pub const PDE_MASK_ADDR: u32 = !0b1111_1111_1111;
 pub const PDE_MASK_AVL: u32 = 0b1111_0100_0000;
@@ -30,60 +31,93 @@ pub const PTE_FLAG_PCD: u32 = 1 << 4;
 pub const PTE_FLAG_A: u32 = 1 << 5;
 pub const PTE_FLAG_D: u32 = 1 << 6;
 
-/// How many page directories to allocate for the kernel.
-///
-/// A temporary thing.
-pub const KERNEL_ALLOC: usize = 2;
-
 extern "C" {
+    #[allow(improper_ctypes)]
+    static mut PAGE_DIRECTORY_PHYS: PhysicalSymbol; 
+    #[allow(improper_ctypes)]
+    static mut PAGE_TABLES_PHYS: PhysicalSymbol;
     static mut PAGE_DIRECTORY: PageDirectory;
     static mut PAGE_TABLES: [PageTable; 1023];
 
-    fn enable_paging();
+    #[allow(improper_ctypes)]
+    pub static mut KERNEL_START_PHYS: PhysicalSymbol;
+    #[allow(improper_ctypes)]
+    pub static mut KERNEL_END_PHYS: PhysicalSymbol;
+    #[allow(improper_ctypes)]
+    pub static mut KERNEL_START: VirtualSymbol;
+    #[allow(improper_ctypes)]
+    pub static mut KERNEL_END: VirtualSymbol;
 }
 
 pub type HighestMap = PageDirectory;
 pub type HighestEntry = PageDirectoryEntry;
 
-unsafe fn init_paging() {
-    // init paging
-    for (i, pde) in (&mut PAGE_DIRECTORY.0).into_iter().take(1023).enumerate() {
-        pde.init();
-        pde.set_pointer(&mut PAGE_TABLES[i] as *mut _);
+impl<T> PhysicalAddress<T> {
+    /// Returns the virtual address of this symbol.
+    ///
+    /// It assumes it's a preallocated, static kernel symbol.
+    pub fn virtual_addr(&self) -> *const VirtualSymbol {
+        (self.0 as usize + 0xC0000000) as *const VirtualSymbol
+    }
+}
 
-        for (j, pte) in (&mut PAGE_TABLES[i].0).into_iter().enumerate() {
-            pte.init();
-            pte.set_pointer(((i << 22) | (j << 12)) as *mut Page);
+unsafe fn init_paging() {
+    // including the first MiB
+    let pages = (KERNEL_END_PHYS.physical_addr().0 as usize + 4095) / 4096;
+    let page_tables = (KERNEL_END_PHYS.physical_addr().0 as usize + 4096 * 1024 - 1) / (4096 * 1024);
+
+    // both higher half and identity paging are set up before kernel_main is
+    // even called
+    // identity paging is now unneded so it needs to be disabled
+    for pde in (&mut PAGE_DIRECTORY.0).into_iter().take(page_tables) {
+        pde.0 = 0;
+    }
+
+    for i in 0..(page_tables) {
+        for pte in (&mut PAGE_TABLES[i].0).into_iter() {
+            pte.0 = 0;
         }
     }
+
+    for pte in (&mut PAGE_TABLES[page_tables - 1].0).into_iter().take(pages - (page_tables - 1) * 1024) {
+        pte.0 = 0;
+    }
+
+    // make the first page inaccessible so that the null pointer is not valid
+    PAGE_DIRECTORY.0[0].init();
+    PAGE_DIRECTORY.0[0].set_pointer(PAGE_TABLES_PHYS.physical_addr().typed_address());
+    PAGE_DIRECTORY.0[0].set_present(false);
+    PAGE_DIRECTORY.0[0].set_supervisor_only(true);
+    PAGE_DIRECTORY.0[0].set_writable(false);
+    PAGE_TABLES[0].0[0].init();
+    PAGE_TABLES[0].0[0].set_pointer(PhysicalAddress(0 as *const _));
+    PAGE_TABLES[0].0[0].set_present(false);
+    PAGE_TABLES[0].0[0].set_supervisor_only(true);
+    PAGE_TABLES[0].0[0].set_writable(false);
 
     // setup recursive paging
     PAGE_DIRECTORY.0[1023].init();
-    PAGE_DIRECTORY.0[1023].set_pointer(&mut PAGE_DIRECTORY as *mut _ as *mut PageTable);
+    PAGE_DIRECTORY.0[1023].set_pointer(PAGE_DIRECTORY_PHYS.physical_addr().typed_address());
+    PAGE_TABLES[0].0[0].set_present(true);
+    PAGE_TABLES[0].0[0].set_supervisor_only(true);
+    PAGE_TABLES[0].0[0].set_writable(true);
 
-    // alloc first few MiB for the kernel
-    // TODO auto detect the count of needed pages in the linker script
-    for (i, pde) in (&mut PAGE_DIRECTORY.0).into_iter().take(KERNEL_ALLOC).enumerate() {
-        pde.set_supervisor_only(true);
-        pde.set_present(true);
+    // TODO mark the first page and the last page directory as always used by 
+    // the kernel when implementing memory managment
 
-        for pte in &mut PAGE_TABLES[i].0 {
-            pte.set_supervisor_only(true);
-            pte.set_present(true);
-        }
-    }
+    flush();
+}
 
-    enable_paging();
+pub unsafe fn flush() {
+    let addr = PAGE_DIRECTORY_PHYS.physical_addr().0 as usize;
+    asm!("mov cr3, eax", in("eax") addr);
 }
 
 /// Initializes paging, the [GDT](arch::gdt) and the [TSS](arch::tss).
-///
-/// Returns the address of the page directory.
-pub unsafe fn init() -> *mut PageDirectory {
+pub unsafe fn init() {
     arch::gdt::init();
-    init_paging();
     arch::tss::init();
-    &mut PAGE_DIRECTORY as *mut _
+    init_paging();
 }
 
 #[derive(Debug, Clone)]
@@ -130,14 +164,14 @@ impl PageMapEntry for PageDirectoryEntry {
     }
 
     #[inline]
-    fn get_pointer(&self) -> *mut PageTable {
-        (self.0 & PDE_MASK_ADDR) as *mut PageTable
+    fn get_pointer(&self) -> PhysicalAddress<PageTable> {
+        PhysicalAddress((self.0 & PDE_MASK_ADDR) as *const _)
     }
 
     #[inline]
-    fn set_pointer(&mut self, addr: *mut PageTable) {
+    fn set_pointer(&mut self, addr: PhysicalAddress<PageTable>) {
         self.0 &= !PDE_MASK_ADDR;
-        self.0 |= (addr as u32) & PDE_MASK_ADDR
+        self.0 |= (addr.0 as u32) & PDE_MASK_ADDR
     }
 
     #[inline]
@@ -245,14 +279,14 @@ impl PageMapEntry for PageTableEntry {
     }
 
     #[inline]
-    fn get_pointer(&self) -> *mut Page {
-        (self.0 & PTE_MASK_ADDR) as *mut Page
+    fn get_pointer(&self) -> PhysicalAddress<Page> {
+        PhysicalAddress((self.0 & PTE_MASK_ADDR) as *const _)
     }
 
     #[inline]
-    fn set_pointer(&mut self, addr: *mut Page) {
+    fn set_pointer(&mut self, addr: PhysicalAddress<Page>) {
         self.0 &= !PTE_MASK_ADDR;
-        self.0 |= (addr as u32) & PTE_MASK_ADDR;
+        self.0 |= (addr.0 as u32) & PTE_MASK_ADDR;
     }
 
     #[inline]

@@ -2,8 +2,8 @@
 
 use crate::io;
 
-/// VGA text buffer located at `0xB8000`.
-pub const BUFFER: *mut VgaEntry = 0xB8000 as *mut VgaEntry;
+/// VGA text buffer located at `0xC000B8000`.
+pub const BUFFER: *mut VgaEntry = 0xC00B8000 as *mut VgaEntry;
 /// VGA text width.
 pub const VGA_WIDTH: u8 = 80;
 /// VGA text height.

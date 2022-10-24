@@ -23,53 +23,22 @@ extern "C" {
     /// - may add more TSSs in the future
     pub static mut GDT: [GDTDescriptor; 6];
 
-    /// Loads the [`GDTR`].
-    ///
-    /// It invokes `lgdt`, performs a far jump to the kernel code segment
-    /// (GDT[1] or 0x08) and loads the kernel data segments (GDT[1] or 0x10).
+    /// Loads the [`GDTR`] and sets the segment registers.
     fn load_gdtr();
 }
 
 /// Initializes the GDT.
 pub unsafe fn init() {
-    // null
-    GDT[0].set_base(0);
-    GDT[0].set_limit(0);
-    GDT[0].set_access_byte(0);
-    GDT[0].set_flags(0);
+    // map GDTR to the virtual address of the GDT
+    // it was set to physical address before
+    GDTR.offset = &GDT as *const _ as u32;
 
-    // kernel code
-    GDT[1].set_base(0);
-    GDT[1].set_limit(0xFFFFF);
-    GDT[1].set_access_byte(0x9A);
-    GDT[1].set_flags(0xC);
-
-    // kernel data
-    GDT[2].set_base(0);
-    GDT[2].set_limit(0xFFFFF);
-    GDT[2].set_access_byte(0x92);
-    GDT[2].set_flags(0xC);
-
-    // user code
-    GDT[3].set_base(0);
-    GDT[3].set_limit(0xFFFFF);
-    GDT[3].set_access_byte(0xFA);
-    GDT[3].set_flags(0xC);
-
-    // user data
-    GDT[4].set_base(0);
-    GDT[4].set_limit(0xFFFFF);
-    GDT[4].set_access_byte(0xF2);
-    GDT[4].set_flags(0xC);
-
-    // task state segment
+    // set the task state segment
     GDT[5].set_base(&arch::tss::TSS as *const _ as u32);
     GDT[5].set_limit(core::mem::size_of::<arch::tss::TaskStateSegment>() as u32);
     GDT[5].set_access_byte(0x89);
     GDT[5].set_flags(0x0);
-
     GDTR.size = 0x2F;
-    GDTR.offset = &GDT as *const _ as u32;
 
     load_gdtr();
 }

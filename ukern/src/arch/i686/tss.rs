@@ -4,15 +4,52 @@
 
 use core::arch::asm;
 
-extern "C" {
-    /// The Task State Segment.
-    ///
-    /// There is usually one TSS per process (the old way, there are too few
-    /// segments in the [GDT](crate::arch::gdt)) or one per CPU.
-    pub static mut TSS: TaskStateSegment;
-    /// The TSS stack.
-    pub static mut ESP0: [u8; 16384];
-}
+/// The TSS stack.
+pub static mut ESP0: [u8; 16 * 1024] = [0; 16 * 1024];
+
+/// The Task State Segment.
+///
+/// There is usually one TSS per process (the old way, there are too few
+/// segments in the [GDT](crate::arch::gdt)) or one per CPU.
+pub static mut TSS: TaskStateSegment = TaskStateSegment {
+    link: 0,
+    esp0: 0,
+    ss0: 0,
+    res0: 0,
+    esp1: 0,
+    ss1: 0,
+    res1: 0,
+    esp2: 0,
+    ss2: 0,
+    res2: 0,
+    cr3: 0,
+    eip: 0,
+    eflags: 0,
+    eax: 0,
+    ecx: 0,
+    edx: 0,
+    ebx: 0,
+    esp: 0,
+    ebp: 0,
+    esi: 0,
+    edi: 0,
+    es: 0,
+    res3: 0,
+    cs: 0,
+    res4: 0,
+    ss: 0,
+    res5: 0,
+    ds: 0,
+    res6: 0,
+    fs: 0,
+    res7: 0,
+    gs: 0x13,
+    res8: 0,
+    ldtr: 0,
+    res9: 0,
+    res10: 0,
+    iopb: core::mem::size_of::<TaskStateSegment>() as u16,
+};
 
 /// The Task State Segment structure.
 #[derive(Debug, Clone)]
@@ -63,16 +100,13 @@ pub struct TaskStateSegment {
 
 /// Initializes the TSS.
 pub unsafe fn init() {
-    TSS = core::mem::zeroed::<TaskStateSegment>();
     asm!("ltr ax", in("ax") 0x28);
-
-    TSS.ss0 = 0x10;
-    TSS.esp0 = &ESP0 as *const _ as u32;
     TSS.cs = 0x0b;
-    TSS.ds = 0x13;
+    TSS.ss0 = 0x10;
     TSS.es = 0x13;
+    TSS.ss = 0x13;
+    TSS.ds = 0x13;
     TSS.fs = 0x13;
     TSS.gs = 0x13;
-    TSS.ss = 0x13;
-    TSS.iopb = core::mem::size_of::<TaskStateSegment>() as u16;
+    TSS.esp0 = &ESP0 as *const _ as u32;
 }
