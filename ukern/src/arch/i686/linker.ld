@@ -21,6 +21,11 @@ SECTIONS
     {
         *(.bss.init)
     }
+    
+    .stack : AT(KERNEL_END_PHYS) ALIGN(4K)
+    {
+        *(.stack)
+    }
 
     . += 0xC0000000;
     PAGE_DIRECTORY = PAGE_DIRECTORY_PHYS + 0xC0000000;
@@ -56,6 +61,11 @@ SECTIONS
         *(.data.*)
     }
 
+    .gcc_except_table : AT(ADDR(.gcc_except_table) - 0xC0000000) ALIGN(4K)
+    {
+        *(.gcc_except_table.*)
+    }
+
     .bss : AT(ADDR(.bss) - 0xC0000000) ALIGN(4K)
     {
         *(COMMON)
@@ -63,11 +73,16 @@ SECTIONS
         *(.bss.*)
     }
 
-    .gcc_except_table : AT(ADDR(.gcc_except_table) - 0xC0000000) ALIGN(4K)
-    {
-        *(.gcc_except_table.*)
-    }
-
     KERNEL_END = .;
     KERNEL_END_PHYS = KERNEL_END - 0xC0000000;
+
+    STACK_BOTTOM = 0xFFC00000;
+    STACK_TOP = STACK_BOTTOM - SIZEOF(.stack);
+
+    STACK_TOP_PHYS_PAGE = (STACK_TOP_PHYS >> 12) * 4 + PAGE_TABLES_PHYS;
+    STACK_TOP_PAGE = (STACK_TOP >> 12) * 4 + PAGE_TABLES_PHYS;
+    STACK_TOP_PHYS_PAGE_TABLE = (STACK_TOP_PHYS >> 22) * 4 + PAGE_DIRECTORY_PHYS;
+    STACK_TOP_PAGE_TABLE = (STACK_TOP >> 22) * 4 + PAGE_DIRECTORY_PHYS;
+
+    KERNEL_INIT_ALLOC = KERNEL_END_PHYS + SIZEOF(.stack);
 }

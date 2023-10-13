@@ -33,7 +33,7 @@ pub const PTE_FLAG_D: u32 = 1 << 6;
 
 extern "C" {
     #[allow(improper_ctypes)]
-    static mut PAGE_DIRECTORY_PHYS: PhysicalSymbol; 
+    static mut PAGE_DIRECTORY_PHYS: PhysicalSymbol;
     #[allow(improper_ctypes)]
     static mut PAGE_TABLES_PHYS: PhysicalSymbol;
     static mut PAGE_DIRECTORY: PageDirectory;
@@ -43,6 +43,8 @@ extern "C" {
     pub static mut KERNEL_START_PHYS: PhysicalSymbol;
     #[allow(improper_ctypes)]
     pub static mut KERNEL_END_PHYS: PhysicalSymbol;
+    #[allow(improper_ctypes)]
+    pub static mut KERNEL_INIT_ALLOC: PhysicalSymbol;
     #[allow(improper_ctypes)]
     pub static mut KERNEL_START: VirtualSymbol;
     #[allow(improper_ctypes)]
@@ -63,25 +65,34 @@ impl<T> PhysicalAddress<T> {
 
 unsafe fn init_paging() {
     // including the first MiB
-    let pages = (KERNEL_END_PHYS.physical_addr().0 as usize + 4095) / 4096;
-    let page_tables = (KERNEL_END_PHYS.physical_addr().0 as usize + 4096 * 1024 - 1) / (4096 * 1024);
+    let pages = (KERNEL_INIT_ALLOC.physical_addr().0 as usize + 4095) / 4096;
+    let page_tables =
+        (KERNEL_INIT_ALLOC.physical_addr().0 as usize + 4096 * 1024 - 1) / (4096 * 1024);
 
     // both higher half and identity paging are set up before kernel_main is
     // even called
-    // identity paging is now unneded so it needs to be disabled
-    for pde in (&mut PAGE_DIRECTORY.0).into_iter().take(page_tables) {
+    // identity paging isn't needed now so it must be disabled
+    for pde in PAGE_DIRECTORY.0.iter_mut().take(page_tables) {
         pde.0 = 0;
     }
 
-    for i in 0..(page_tables) {
-        for pte in (&mut PAGE_TABLES[i].0).into_iter() {
+    for table in &mut PAGE_TABLES {
+        for pte in table.0.iter_mut() {
             pte.0 = 0;
         }
     }
 
-    for pte in (&mut PAGE_TABLES[page_tables - 1].0).into_iter().take(pages - (page_tables - 1) * 1024) {
+    for pte in PAGE_TABLES[page_tables - 1]
+        .0
+        .iter_mut()
+        .take(pages - (page_tables - 1) * 1024)
+    {
         pte.0 = 0;
     }
+
+    // for pde in PAGE_DIRECTORY.0.iter_mut().take(n)
+
+    // TODO remove the stack from 0xc0...
 
     // make the first page inaccessible so that the null pointer is not valid
     PAGE_DIRECTORY.0[0].init();
@@ -90,7 +101,7 @@ unsafe fn init_paging() {
     PAGE_DIRECTORY.0[0].set_supervisor_only(true);
     PAGE_DIRECTORY.0[0].set_writable(false);
     PAGE_TABLES[0].0[0].init();
-    PAGE_TABLES[0].0[0].set_pointer(PhysicalAddress(0 as *const _));
+    PAGE_TABLES[0].0[0].set_pointer(PhysicalAddress(core::ptr::null()));
     PAGE_TABLES[0].0[0].set_present(false);
     PAGE_TABLES[0].0[0].set_supervisor_only(true);
     PAGE_TABLES[0].0[0].set_writable(false);
@@ -102,7 +113,7 @@ unsafe fn init_paging() {
     PAGE_TABLES[0].0[0].set_supervisor_only(true);
     PAGE_TABLES[0].0[0].set_writable(true);
 
-    // TODO mark the first page and the last page directory as always used by 
+    // TODO mark the first page and the last page directory as always used by
     // the kernel when implementing memory managment
 
     flush();
@@ -261,7 +272,8 @@ impl PageMapEntry for PageDirectoryEntry {
 
     #[inline]
     fn set_avl(&mut self, avl: u16) {
-        self.0 = (self.0 & !PDE_MASK_AVL) | (((avl as u32) & 1) << 6) | (((avl as u32) & 0b11110) << 8)
+        self.0 =
+            (self.0 & !PDE_MASK_AVL) | (((avl as u32) & 1) << 6) | (((avl as u32) & 0b11110) << 8)
     }
 }
 
