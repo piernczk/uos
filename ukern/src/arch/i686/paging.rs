@@ -65,9 +65,8 @@ impl<T> PhysicalAddress<T> {
 
 unsafe fn init_paging() {
     // including the first MiB
-    let pages = (KERNEL_INIT_ALLOC.physical_addr().0 as usize + 4095) / 4096;
-    let page_tables =
-        (KERNEL_INIT_ALLOC.physical_addr().0 as usize + 4096 * 1024 - 1) / (4096 * 1024);
+    let mut pages = (KERNEL_INIT_ALLOC.physical_addr().0 as usize + (1 << 12) - 1) >> 12;
+    let mut page_tables = (KERNEL_INIT_ALLOC.physical_addr().0 as usize + (1 << 22) - 1) >> 22;
 
     // both higher half and identity paging are set up before kernel_main is
     // even called
@@ -76,7 +75,7 @@ unsafe fn init_paging() {
         pde.0 = 0;
     }
 
-    for table in &mut PAGE_TABLES {
+    for table in PAGE_TABLES.iter_mut().take(page_tables) {
         for pte in table.0.iter_mut() {
             pte.0 = 0;
         }
@@ -90,9 +89,37 @@ unsafe fn init_paging() {
         pte.0 = 0;
     }
 
-    // for pde in PAGE_DIRECTORY.0.iter_mut().take(n)
+    let kernel_end_page = (KERNEL_END.virtual_addr() as usize + (1 << 12) - 1) >> 12;
+    let kernel_end_page_tables = (KERNEL_END.virtual_addr() as usize + (1 << 22) - 1) >> 22;
+    pages += 768 * 1024;
+    page_tables += 768;
+    for pde in PAGE_DIRECTORY
+        .0
+        .iter_mut()
+        .skip(kernel_end_page)
+        .take(pages - kernel_end_page)
+    {
+        pde.0 = 0;
+    }
 
-    // TODO remove the stack from 0xc0...
+    for table in PAGE_TABLES
+        .iter_mut()
+        .skip(page_tables)
+        .take(kernel_end_page_tables - page_tables)
+    {
+        for pte in table.0.iter_mut() {
+            pte.0 = 0;
+        }
+    }
+
+    for pte in PAGE_TABLES[page_tables - 1]
+        .0
+        .iter_mut()
+        .skip(kernel_end_page - (kernel_end_page_tables - 1) * 1024)
+        .take(pages - kernel_end_page + 1024 * ((kernel_end_page_tables - 1) - (page_tables - 1)))
+    {
+        pte.0 = 0;
+    }
 
     // make the first page inaccessible so that the null pointer is not valid
     PAGE_DIRECTORY.0[0].init();

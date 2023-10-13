@@ -21,11 +21,6 @@ SECTIONS
     {
         *(.bss.init)
     }
-    
-    .stack : AT(KERNEL_END_PHYS) ALIGN(4K)
-    {
-        *(.stack)
-    }
 
     . += 0xC0000000;
     PAGE_DIRECTORY = PAGE_DIRECTORY_PHYS + 0xC0000000;
@@ -83,6 +78,13 @@ SECTIONS
     STACK_TOP_PAGE = (STACK_TOP >> 12) * 4 + PAGE_TABLES_PHYS;
     STACK_TOP_PHYS_PAGE_TABLE = (STACK_TOP_PHYS >> 22) * 4 + PAGE_DIRECTORY_PHYS;
     STACK_TOP_PAGE_TABLE = (STACK_TOP >> 22) * 4 + PAGE_DIRECTORY_PHYS;
+
+    . -= 0xC0000000;
+    .stack : AT(KERNEL_END_PHYS) ALIGN(4K)
+    {
+        *(.stack)
+    }
+    . += 0xC0000000;
 
     KERNEL_INIT_ALLOC = KERNEL_END_PHYS + SIZEOF(.stack);
 }
