@@ -7,7 +7,7 @@ use crate::io;
 
 /// The number of the I/O bus port used for sending data to the controller
 /// and devices.
-pub const DATA_PORT: io::IOPort = 0x60;
+pub const DATA_PORT: io::IoPort = 0x60;
 /// The number of the I/O bus port used by the controller to report its status.
 ///
 /// Status register consists of several flags, in the order:
@@ -20,9 +20,9 @@ pub const DATA_PORT: io::IOPort = 0x60;
 /// - unknown,
 /// - time-out error occurred,
 /// - parity error occurred,
-pub const STATUS_PORT: io::IOPort = 0x64;
+pub const STATUS_PORT: io::IoPort = 0x64;
 /// The number of the I/O bus port used to send commands to the controller.
-pub const COMMAND_PORT: io::IOPort = 0x64;
+pub const COMMAND_PORT: io::IoPort = 0x64;
 
 /// Whether the controller has two ports or not.
 pub static mut DUAL_CHANNEL: bool = false;
@@ -146,7 +146,7 @@ pub fn send_command(command: u8) {
 
 /// Waits until one is able to read the [`DATA_PORT`].
 pub fn wait_read() {
-   let mut status = 0;
+    let mut status = 0;
     while status & 1 == 0 {
         status = io::inb(STATUS_PORT);
     }

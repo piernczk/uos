@@ -6,8 +6,8 @@
 //! value is sometimes called the divider, as it literally divides the frequency
 //! into a smaller one.
 
-use crate::io;
 use crate::arch;
+use crate::io;
 
 /// The smallest possible frequency in Hz.
 ///
@@ -19,15 +19,15 @@ pub const MIN_FREQ: u32 = 18;
 pub const MAX_FREQ: u32 = 1193181;
 
 /// The I/O port of the channel 0 used most of the time.
-pub const CHANNEL0_PORT: io::IOPort = 0x40;
+pub const CHANNEL0_PORT: io::IoPort = 0x40;
 /// The I/O port of the channel 1, now unused.
-pub const CHANNEL1_PORT: io::IOPort = 0x41;
+pub const CHANNEL1_PORT: io::IoPort = 0x41;
 /// The I/O port of the channel 2 used for the PC speaker.
-pub const CHANNEL2_PORT: io::IOPort = 0x42;
+pub const CHANNEL2_PORT: io::IoPort = 0x42;
 /// The command I/O port of the PIT.
-pub const COMMAND_PORT: io::IOPort = 0x43;
+pub const COMMAND_PORT: io::IoPort = 0x43;
 /// The I/O port of the PC speaker (and probably some PS/2 stuff).
-pub const PCSPK_PORT: io::IOPort = 0x61;
+pub const PCSPK_PORT: io::IoPort = 0x61;
 
 pub const SELECT_CHANNEL0: u8 = 0b00 << 6;
 pub const SELECT_CHANNEL1: u8 = 0b01 << 6;
@@ -110,7 +110,10 @@ pub unsafe fn init(freq: u32) {
 pub fn play_sound(freq: u32) {
     // init channel2 to the reload value
     let reload_value = calc_reload_value(freq);
-    io::outb(COMMAND_PORT, SELECT_CHANNEL2 | LOBYTE_HIBYTE | SQUARE_WAVE_GEN);
+    io::outb(
+        COMMAND_PORT,
+        SELECT_CHANNEL2 | LOBYTE_HIBYTE | SQUARE_WAVE_GEN,
+    );
     io::outb(CHANNEL2_PORT, (reload_value & 0xFF) as u8);
     io::outb(CHANNEL2_PORT, (reload_value >> 8) as u8);
 
@@ -154,7 +157,7 @@ pub fn calc_reload_value(freq: u32) -> u16 {
 pub unsafe fn tick() {
     SYS_FRACTS += IRQ0_FRACTS;
     SYS_MILLIS = SYS_MILLIS.wrapping_add(IRQ0_MILLIS as u64) + (SYS_FRACTS / RELOAD_VALUE) as u64;
-SYS_FRACTS %= RELOAD_VALUE;
+    SYS_FRACTS %= RELOAD_VALUE;
 
     CNT_FRACTS += IRQ0_FRACTS;
     CNT_MILLIS = CNT_MILLIS.wrapping_add(IRQ0_MILLIS) + (CNT_FRACTS / RELOAD_VALUE) as u32;
@@ -179,18 +182,14 @@ pub fn reset_counter() {
 
 /// How many millis have elapsed since the counting started.
 pub fn elapsed() -> u32 {
-    unsafe {
-        CNT_MILLIS
-    }
+    unsafe { CNT_MILLIS }
 }
 
 /// How many ticks have elapsed since the counting started.
 ///
 /// Testing only, will be removed soon.
 pub fn elapsed_ticks() -> u32 {
-    unsafe {
-        CNT_TICKS
-    }
+    unsafe { CNT_TICKS }
 }
 
 /// Sleep for a given amount of time in millis.

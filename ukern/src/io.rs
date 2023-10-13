@@ -3,7 +3,7 @@
 use core::arch::asm;
 
 /// x86 I/O bus port type.
-pub type IOPort = u16;
+pub type IoPort = u16;
 
 /// Wait a very small amount of time by writing to `0x80`.
 #[inline]
@@ -12,7 +12,7 @@ pub fn wait() {
 }
 
 /// Gets a byte from the I/O bus.
-pub fn inb(port: IOPort) -> u8 {
+pub fn inb(port: IoPort) -> u8 {
     let ret;
 
     unsafe {
@@ -24,10 +24,10 @@ pub fn inb(port: IOPort) -> u8 {
     }
 
     ret
-} 
+}
 
 /// Sends a byte to the given I/O bus port.
-pub fn outb(port: IOPort, data: u8) {
+pub fn outb(port: IoPort, data: u8) {
     unsafe {
         asm!(
             "out dx, al",
@@ -38,7 +38,7 @@ pub fn outb(port: IOPort, data: u8) {
 }
 
 /// Gets a word from the I/O bus.
-pub fn inw(port: IOPort) -> u16 {
+pub fn inw(port: IoPort) -> u16 {
     let ret;
 
     unsafe {
@@ -50,10 +50,10 @@ pub fn inw(port: IOPort) -> u16 {
     }
 
     ret
-} 
+}
 
 /// Sends a word to the given I/O bus port.
-pub fn outw(port: IOPort, data: u16) {
+pub fn outw(port: IoPort, data: u16) {
     unsafe {
         asm!(
             "out dx, ax",
@@ -64,7 +64,7 @@ pub fn outw(port: IOPort, data: u16) {
 }
 
 /// Gets a double word from the I/O bus.
-pub fn inl(port: IOPort) -> u32 {
+pub fn inl(port: IoPort) -> u32 {
     let ret;
 
     unsafe {
@@ -76,10 +76,10 @@ pub fn inl(port: IOPort) -> u32 {
     }
 
     ret
-} 
+}
 
 /// Sends a double word to the given I/O bus port.
-pub fn outl(port: IOPort, data: u32) {
+pub fn outl(port: IoPort, data: u32) {
     unsafe {
         asm!(
             "out dx, eax",

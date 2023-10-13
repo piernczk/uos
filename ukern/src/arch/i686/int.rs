@@ -1,9 +1,9 @@
 //! 8259 PIC, IRQs, exceptions, the Interrupt Descriptor Table and the like.
 
-use crate::io;
-use crate::terminal;
-use crate::keyboard;
 use crate::arch::{pit, util};
+use crate::io;
+use crate::keyboard;
+use crate::terminal;
 
 extern "C" {
     /// The IRQ wrappers.
@@ -37,11 +37,11 @@ static mut IDT: [GateDescriptor; 256] = unsafe { core::mem::transmute([0u64; 256
 /// - IRQ7 - LPT1, may be spurious
 ///
 /// See [`PIC1_COMMAND`] and [`PIC1_DATA`].
-pub const PIC1: io::IOPort = 0x20;
+pub const PIC1: io::IoPort = 0x20;
 /// The command I/O port of the master PIC.
-pub const PIC1_COMMAND: io::IOPort = PIC1;
+pub const PIC1_COMMAND: io::IoPort = PIC1;
 /// The data I/O port of the master PIC.
-pub const PIC1_DATA: io::IOPort = PIC1 + 1;
+pub const PIC1_DATA: io::IoPort = PIC1 + 1;
 
 /// The "base" I/O port of the slave Programmable Interrupt Controller.
 ///
@@ -57,11 +57,11 @@ pub const PIC1_DATA: io::IOPort = PIC1 + 1;
 /// - IRQ15 - secondary ATA HD
 ///
 /// See [`PIC2_COMMAND`] and [`PIC2_DATA`].
-pub const PIC2: io::IOPort = 0xA0;
+pub const PIC2: io::IoPort = 0xA0;
 /// The command I/O port of the slave PIC.
-pub const PIC2_COMMAND: io::IOPort = PIC2;
+pub const PIC2_COMMAND: io::IoPort = PIC2;
 /// The data I/O port of the slave PIC.
-pub const PIC2_DATA: io::IOPort = PIC2 + 1;
+pub const PIC2_DATA: io::IoPort = PIC2 + 1;
 
 /// End-of-interrupt signal.
 ///

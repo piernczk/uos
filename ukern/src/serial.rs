@@ -3,12 +3,12 @@ use core::default;
 use bitflags::bitflags;
 use num_enum::{IntoPrimitive, TryFromPrimitive, TryFromPrimitiveError};
 
-use crate::io::{self, IOPort};
+use crate::io::{self, IoPort};
 
 pub const COM_PORTS_COUNT: usize = 8;
 static mut COM_PORTS: [Option<ComPort>; COM_PORTS_COUNT] =
     [None, None, None, None, None, None, None, None];
-pub const DEFAULT_PORT_ADDRESSES: [IOPort; 8] =
+pub const DEFAULT_PORT_ADDRESSES: [IoPort; 8] =
     [0x3F8, 0x2F8, 0x3E8, 0x2E8, 0x5F8, 0x4F8, 0x5E8, 0x4E8];
 
 const CHARACTER_BITS_COUNT_MASK: u8 = 0b11;
@@ -16,16 +16,16 @@ const STOP_BITS_COUNT_MASK: u8 = 0b100;
 const PARITY_MASK: u8 = 0b111_000;
 const DIVISOR_LATCH_MASK: u8 = 0b1000_0000;
 
-const DATA_PORT: IOPort = 0;
-const INTERRPUT_ENABLE_PORT: IOPort = 1;
-const DIVISOR_LATCH_LOW_PORT: IOPort = 0;
-const DIVISOR_LATCH_HIGH_PORT: IOPort = 1;
-const INTERRPUT_IDENTIFICATION_PORT: IOPort = 2;
-const LINE_CONTROL_PORT: IOPort = 3;
-const MODEM_CONTROL_PORT: IOPort = 4;
-const LINE_STATUS_PORT: IOPort = 5;
-const MODEM_STATUS_PORT: IOPort = 6;
-const SCRATCH_PORT: IOPort = 7;
+const DATA_PORT: IoPort = 0;
+const INTERRPUT_ENABLE_PORT: IoPort = 1;
+const DIVISOR_LATCH_LOW_PORT: IoPort = 0;
+const DIVISOR_LATCH_HIGH_PORT: IoPort = 1;
+const INTERRPUT_IDENTIFICATION_PORT: IoPort = 2;
+const LINE_CONTROL_PORT: IoPort = 3;
+const MODEM_CONTROL_PORT: IoPort = 4;
+const LINE_STATUS_PORT: IoPort = 5;
+const MODEM_STATUS_PORT: IoPort = 6;
+const SCRATCH_PORT: IoPort = 7;
 
 pub unsafe fn com(i: usize) -> Option<&'static mut ComPort> {
     COM_PORTS.get_mut(i).and_then(|x| x.as_mut())
@@ -39,7 +39,7 @@ pub unsafe fn init_default(i: usize) -> bool {
     init(i, DEFAULT_PORT_ADDRESSES[i])
 }
 
-pub unsafe fn init(i: usize, port_address: IOPort) -> bool {
+pub unsafe fn init(i: usize, port_address: IoPort) -> bool {
     close(i);
     COM_PORTS[i] = Some(ComPort::new(port_address, LineControlRegister::default()));
     true
@@ -66,7 +66,7 @@ pub unsafe fn close(i: usize) -> bool {
 
 #[derive(Debug)]
 pub struct ComPort {
-    port_address: IOPort,
+    port_address: IoPort,
     line_control_register: LineControlRegister,
 }
 
@@ -117,7 +117,7 @@ bitflags! {
 }
 
 impl ComPort {
-    fn new(port_address: IOPort, line_control_register: LineControlRegister) -> Self {
+    fn new(port_address: IoPort, line_control_register: LineControlRegister) -> Self {
         let com = Self {
             port_address,
             line_control_register,
@@ -126,11 +126,11 @@ impl ComPort {
         com
     }
 
-    fn inb(&self, register_port: IOPort) -> u8 {
+    fn inb(&self, register_port: IoPort) -> u8 {
         io::inb(self.port_address + register_port)
     }
 
-    fn outb(&self, register_port: IOPort, data: u8) {
+    fn outb(&self, register_port: IoPort, data: u8) {
         io::outb(self.port_address + register_port, data);
     }
 
