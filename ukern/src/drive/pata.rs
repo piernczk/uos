@@ -10,9 +10,9 @@ pub const PORT_DATA: io::IoPort = 0x00;
 pub const PORT_ERROR: io::IoPort = 0x01;
 pub const PORT_FEATURES: io::IoPort = 0x01;
 pub const PORT_SECTOR_COUNT: io::IoPort = 0x02;
-pub const PORT_SECTOR_NUMBER: io::IoPort = 0x03;
-pub const PORT_CYLINDER_LOW: io::IoPort = 0x04;
-pub const PORT_CYLINDER_HIGH: io::IoPort = 0x05;
+pub const PORT_LBA_LOW: io::IoPort = 0x03;
+pub const PORT_LBA_MID: io::IoPort = 0x04;
+pub const PORT_LBA_HIGH: io::IoPort = 0x05;
 pub const PORT_DRIVE_HEAD: io::IoPort = 0x06;
 pub const PORT_STATUS: io::IoPort = 0x07;
 pub const PORT_COMMAND: io::IoPort = 0x07;
@@ -21,10 +21,10 @@ pub const PORT_STATUS_ALT: io::IoPort = 0x00;
 pub const PORT_DEVICE_CONTROL: io::IoPort = 0x00;
 pub const PORT_DRIVE_ADDRESS: io::IoPort = 0x01;
 
-pub const PORT_PRIMARY_IO: io::IoPort = 0x1F0;
-pub const PORT_PRIMARY_CONTROL: io::IoPort = 0x3F6;
-pub const PORT_SECONDARY_IO: io::IoPort = 0x170;
-pub const PORT_SECONDARY_CONTROL: io::IoPort = 0x376;
+pub const PORT_PRIMARY_COMMAND_BLOCK: io::IoPort = 0x1F0;
+pub const PORT_PRIMARY_CONTROL_BLOCK: io::IoPort = 0x3F6;
+pub const PORT_SECONDARY_COMMAND_BLOCK: io::IoPort = 0x170;
+pub const PORT_SECONDARY_CONTROL_BLOCK: io::IoPort = 0x376;
 
 pub static mut DRIVES: Drives = Drives::new();
 static mut CURRENT_DRIVE_PRIMARY: DriveNumber = DriveNumber::Second;
@@ -167,12 +167,12 @@ impl Drive {
     fn init(controller: Controller, drive: DriveNumber) -> Result<Self, DriveInitError> {
         controller.select_drive(drive);
 
-        io::outb(controller.get_io_port_base() + PORT_SECTOR_NUMBER, 0);
-        io::outb(controller.get_io_port_base() + PORT_CYLINDER_LOW, 0);
-        io::outb(controller.get_io_port_base() + PORT_CYLINDER_HIGH, 0);
+        io::outb(controller.command_block() + PORT_LBA_LOW, 0);
+        io::outb(controller.command_block() + PORT_LBA_MID, 0);
+        io::outb(controller.command_block() + PORT_LBA_HIGH, 0);
 
         // send the IDENTIFY command
-        io::outb(controller.get_io_port_base() + PORT_COMMAND, 0xEC);
+        io::outb(controller.command_block() + PORT_COMMAND, 0xEC);
 
         let mut status = controller.read_status();
         if status == StatusRegister::empty() {
@@ -183,13 +183,13 @@ impl Drive {
             status = controller.read_status();
         }
 
-        if io::inb(controller.get_io_port_base() + PORT_CYLINDER_LOW) != 0
-            || io::inb(controller.get_io_port_base() + PORT_CYLINDER_HIGH) != 0
+        if io::inb(controller.command_block() + PORT_LBA_MID) != 0
+            || io::inb(controller.command_block() + PORT_LBA_HIGH) != 0
         {
             return Err(DriveInitError::DriveNotAta(controller, drive));
         }
 
-        // ERR is always cleared
+        // ERR is always clear
         while !status.contains(StatusRegister::DRQ) {
             status = controller.read_status();
         }
@@ -202,7 +202,7 @@ impl Drive {
         };
 
         for entry in result.identify_data.iter_mut() {
-            *entry = io::inw(controller.get_io_port_base() + PORT_DATA);
+            *entry = io::inw(controller.command_block() + PORT_DATA);
         }
 
         if result.identify_data[49] & (1 << 9) == 0 {
@@ -216,9 +216,9 @@ impl Drive {
 impl Controller {
     fn select_drive(&self, drive: DriveNumber) {
         if self.current_drive_number() != drive {
-            let old = !(1 << 4) & io::inb(self.get_io_port_base() + PORT_DRIVE_HEAD);
+            let old = !(1 << 4) & io::inb(self.command_block() + PORT_DRIVE_HEAD);
             io::outb(
-                self.get_io_port_base() + PORT_DRIVE_HEAD,
+                self.command_block() + PORT_DRIVE_HEAD,
                 old | (u8::from(drive) << 4),
             );
             self.set_current_drive_number(drive);
@@ -226,26 +226,24 @@ impl Controller {
     }
 
     pub fn read_status(&self) -> StatusRegister {
-        unsafe {
-            StatusRegister::from_bits_unchecked(io::inb(self.get_io_port_base() + PORT_STATUS))
-        }
+        unsafe { StatusRegister::from_bits_unchecked(io::inb(self.command_block() + PORT_STATUS)) }
     }
 
     pub fn read_error(&self) -> ErrorRegister {
-        unsafe { ErrorRegister::from_bits_unchecked(io::inb(self.get_io_port_base() + PORT_ERROR)) }
+        unsafe { ErrorRegister::from_bits_unchecked(io::inb(self.command_block() + PORT_ERROR)) }
     }
 
-    pub fn get_io_port_base(&self) -> io::IoPort {
+    pub fn command_block(&self) -> io::IoPort {
         match self {
-            Self::Primary => PORT_PRIMARY_IO,
-            Self::Secondary => PORT_SECONDARY_IO,
+            Self::Primary => PORT_PRIMARY_COMMAND_BLOCK,
+            Self::Secondary => PORT_SECONDARY_COMMAND_BLOCK,
         }
     }
 
-    pub fn get_command_port_base(&self) -> io::IoPort {
+    pub fn control_block(&self) -> io::IoPort {
         match self {
-            Self::Primary => PORT_PRIMARY_IO,
-            Self::Secondary => PORT_SECONDARY_IO,
+            Self::Primary => PORT_PRIMARY_CONTROL_BLOCK,
+            Self::Secondary => PORT_SECONDARY_CONTROL_BLOCK,
         }
     }
 
