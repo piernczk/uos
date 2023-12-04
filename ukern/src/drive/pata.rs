@@ -13,7 +13,7 @@ pub const PORT_SECTOR_COUNT: io::IoPort = 0x02;
 pub const PORT_LBA_LOW: io::IoPort = 0x03;
 pub const PORT_LBA_MID: io::IoPort = 0x04;
 pub const PORT_LBA_HIGH: io::IoPort = 0x05;
-pub const PORT_DRIVE_HEAD: io::IoPort = 0x06;
+pub const PORT_DEVICE: io::IoPort = 0x06;
 pub const PORT_STATUS: io::IoPort = 0x07;
 pub const PORT_COMMAND: io::IoPort = 0x07;
 
@@ -216,9 +216,9 @@ impl Drive {
 impl Controller {
     fn select_drive(&self, drive: DriveNumber) {
         if self.current_drive_number() != drive {
-            let old = !(1 << 4) & io::inb(self.command_block() + PORT_DRIVE_HEAD);
+            let old = !(1 << 4) & io::inb(self.command_block() + PORT_DEVICE);
             io::outb(
-                self.command_block() + PORT_DRIVE_HEAD,
+                self.command_block() + PORT_DEVICE,
                 old | (u8::from(drive) << 4),
             );
             self.set_current_drive_number(drive);
@@ -283,24 +283,34 @@ impl Controller {
 }
 
 impl LogicalBlockAddress {
-    pub fn new24(low: u8, mid: u8, high: u8) -> Self {
-        Self((low as u64) | ((mid as u64) << 8) | ((high as u64) << 16))
+    pub fn new28(low: u8, mid: u8, high: u8, nibble: u8) -> Self {
+        Self(
+            (low as u64)
+                | ((mid as u64) << 8)
+                | ((high as u64) << 16)
+                | (((nibble as u64) & 0b1111) << 24),
+        )
     }
 
     pub fn new48(low: u16, mid: u16, high: u16) -> Self {
         Self((low as u64) | ((mid as u64) << 16) | ((high as u64) << 32))
     }
 
-    pub fn to24(&self) -> Option<(u8, u8, u8)> {
-        if self.0 >= 1 << 24 {
+    pub fn to28(&self) -> Option<(u8, u8, u8, u8)> {
+        if self.0 >= 1 << 28 {
             None
         } else {
-            Some(self.to24_wrapped())
+            Some(self.to28_unchecked())
         }
     }
 
-    pub fn to24_wrapped(&self) -> (u8, u8, u8) {
-        (self.0 as u8, (self.0 >> 8) as u8, (self.0 >> 16) as u8)
+    pub fn to28_unchecked(&self) -> (u8, u8, u8, u8) {
+        (
+            self.0 as u8,
+            (self.0 >> 8) as u8,
+            (self.0 >> 16) as u8,
+            ((self.0 >> 24) & 0b1111) as u8,
+        )
     }
 
     pub fn to48(&self) -> Option<(u16, u16, u16)> {
