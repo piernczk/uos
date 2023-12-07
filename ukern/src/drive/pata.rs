@@ -211,6 +211,99 @@ impl Drive {
 
         Ok(result)
     }
+
+    pub fn read_into(
+        &self,
+        starting_sector: LogicalBlockAddress,
+        mut sector_count: u32,
+        buffer: &mut [u8],
+    ) -> Result<ErrorRegister, ()> {
+        if self.lba48_enabled {
+            if sector_count > 2 << 16 || starting_sector.to48().is_none() {
+                return Err(());
+            }
+
+            if sector_count as usize > (2 * buffer.len()) / (LOGICAL_SECTOR_SIZE as usize) {
+                sector_count = (2 * buffer.len() / (LOGICAL_SECTOR_SIZE as usize)) as u32;
+            }
+
+            if sector_count == 2 << 16 {
+                sector_count = 0;
+            }
+
+            //self.read_into_lba48(starting_sector, sector_count as u16, buffer)
+            Err(())
+        } else {
+            if sector_count > 2 << 8 || starting_sector.to28().is_none() {
+                return Err(());
+            }
+
+            if sector_count as usize > 2 * buffer.len() / (LOGICAL_SECTOR_SIZE as usize) {
+                sector_count = (2 * buffer.len() / (LOGICAL_SECTOR_SIZE as usize)) as u32;
+            }
+
+            if sector_count == 2 << 8 {
+                sector_count = 0;
+            }
+
+            self.read_into_lba28(starting_sector, sector_count as u8, buffer)
+        }
+    }
+
+    fn read_into_lba28(
+        &self,
+        starting_sector: LogicalBlockAddress,
+        sector_count: u8,
+        buffer: &mut [u8],
+    ) -> Result<ErrorRegister, ()> {
+        let mut status = self.controller.read_status();
+        while status.intersects(StatusRegister::BSY | StatusRegister::DRQ) {
+            status = self.controller.read_status();
+        }
+        self.select();
+
+        let (low, mid, high, nibble) = starting_sector.to28_unchecked();
+
+        let old = io::inb(self.controller.command_block() + PORT_DEVICE);
+        io::outb(self.controller.command_block() + PORT_LBA_LOW, low);
+        io::outb(self.controller.command_block() + PORT_LBA_MID, mid);
+        io::outb(self.controller.command_block() + PORT_LBA_HIGH, high);
+        io::outb(
+            self.controller.command_block() + PORT_DEVICE,
+            (old & !0b1111) | nibble,
+        );
+
+        io::outb(
+            self.controller.command_block() + PORT_SECTOR_COUNT,
+            sector_count,
+        );
+
+        io::outb(self.controller.command_block() + PORT_COMMAND, 0x20);
+
+        status = self.controller.read_status();
+        while status.contains(StatusRegister::BSY) {
+            status = self.controller.read_status();
+        }
+        for i in 0..sector_count {
+            while !status.contains(StatusRegister::DRQ) {
+                status = self.controller.read_status();
+            }
+            for j in 0..(LOGICAL_SECTOR_SIZE / 2) {
+                let word = io::inw(self.controller.command_block() + PORT_DATA);
+                let idx = ((i as u64) * LOGICAL_SECTOR_SIZE + j * 2) as usize;
+                buffer[idx] = word as u8;
+                buffer[idx + 1] = (word >> 8) as u8;
+            }
+        }
+
+        // TODO errors
+
+        Ok(self.controller.read_error())
+    }
+
+    fn select(&self) {
+        self.controller.select_drive(self.number);
+    }
 }
 
 impl Controller {
