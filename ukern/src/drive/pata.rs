@@ -217,13 +217,14 @@ impl Drive {
         starting_sector: LogicalBlockAddress,
         mut sector_count: u32,
         buffer: &mut [u8],
-    ) -> Result<ErrorRegister, ()> {
+    ) -> Result<(), ()> {
+        self.select();
         if self.lba48_enabled {
             if sector_count > 2 << 16 || starting_sector.to48().is_none() {
                 return Err(());
             }
 
-            if sector_count as usize > (2 * buffer.len()) / (LOGICAL_SECTOR_SIZE as usize) {
+            if sector_count as usize > 2 * buffer.len() / (LOGICAL_SECTOR_SIZE as usize) {
                 sector_count = (2 * buffer.len() / (LOGICAL_SECTOR_SIZE as usize)) as u32;
             }
 
@@ -231,8 +232,7 @@ impl Drive {
                 sector_count = 0;
             }
 
-            //self.read_into_lba48(starting_sector, sector_count as u16, buffer)
-            Err(())
+            self.read_into_lba48(starting_sector, sector_count as u16, buffer)
         } else {
             if sector_count > 2 << 8 || starting_sector.to28().is_none() {
                 return Err(());
@@ -250,18 +250,64 @@ impl Drive {
         }
     }
 
+    fn read_into_lba48(
+        &self,
+        starting_sector: LogicalBlockAddress,
+        sector_count: u16,
+        buffer: &mut [u8],
+    ) -> Result<(), ()> {
+        let (low, mid, high) = starting_sector.to48().unwrap();
+
+        io::outb(self.controller.command_block() + PORT_LBA_LOW, low as u8);
+        io::outb(self.controller.command_block() + PORT_LBA_MID, mid as u8);
+        io::outb(self.controller.command_block() + PORT_LBA_HIGH, high as u8);
+        io::outb(
+            self.controller.command_block() + PORT_SECTOR_COUNT,
+            sector_count as u8,
+        );
+
+        io::outb(
+            self.controller.command_block() + PORT_LBA_LOW,
+            (low >> 8) as u8,
+        );
+        io::outb(
+            self.controller.command_block() + PORT_LBA_MID,
+            (mid >> 8) as u8,
+        );
+        io::outb(
+            self.controller.command_block() + PORT_LBA_HIGH,
+            (high >> 8) as u8,
+        );
+        io::outb(
+            self.controller.command_block() + PORT_SECTOR_COUNT,
+            (sector_count >> 8) as u8,
+        );
+
+        io::outb(self.controller.command_block() + PORT_COMMAND, 0x24);
+
+        let mut status = self.controller.read_status();
+        while status.contains(StatusRegister::BSY) {
+            status = self.controller.read_status();
+        }
+
+        for i in 0..sector_count {
+            for j in 0..(LOGICAL_SECTOR_SIZE / 2) {
+                let word = io::inw(self.controller.command_block() + PORT_DATA);
+                let idx = ((i as u64) * LOGICAL_SECTOR_SIZE + j * 2) as usize;
+                buffer[idx] = word as u8;
+                buffer[idx + 1] = (word >> 8) as u8;
+            }
+        }
+
+        Ok(())
+    }
+
     fn read_into_lba28(
         &self,
         starting_sector: LogicalBlockAddress,
         sector_count: u8,
         buffer: &mut [u8],
-    ) -> Result<ErrorRegister, ()> {
-        let mut status = self.controller.read_status();
-        while status.intersects(StatusRegister::BSY | StatusRegister::DRQ) {
-            status = self.controller.read_status();
-        }
-        self.select();
-
+    ) -> Result<(), ()> {
         let (low, mid, high, nibble) = starting_sector.to28_unchecked();
 
         let old = io::inb(self.controller.command_block() + PORT_DEVICE);
@@ -280,14 +326,12 @@ impl Drive {
 
         io::outb(self.controller.command_block() + PORT_COMMAND, 0x20);
 
-        status = self.controller.read_status();
+        let mut status = self.controller.read_status();
         while status.contains(StatusRegister::BSY) {
             status = self.controller.read_status();
         }
+
         for i in 0..sector_count {
-            while !status.contains(StatusRegister::DRQ) {
-                status = self.controller.read_status();
-            }
             for j in 0..(LOGICAL_SECTOR_SIZE / 2) {
                 let word = io::inw(self.controller.command_block() + PORT_DATA);
                 let idx = ((i as u64) * LOGICAL_SECTOR_SIZE + j * 2) as usize;
@@ -296,9 +340,7 @@ impl Drive {
             }
         }
 
-        // TODO errors
-
-        Ok(self.controller.read_error())
+        Ok(())
     }
 
     fn select(&self) {
