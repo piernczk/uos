@@ -61,6 +61,16 @@ pub enum DriveInitError {
     LbaNotSupported(Controller, DriveNumber),
 }
 
+#[derive(Debug)]
+pub enum ReadError {
+    DeviceFault,
+    UncorrectableError,
+    BadBlock,
+    IdNotFound,
+    SectorCountTooLarge,
+    FirstSectorOutOfRange,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, TryFromPrimitive, IntoPrimitive)]
 #[repr(u8)]
 pub enum DriveNumber {
@@ -110,8 +120,8 @@ bitflags! {
         const DRQ = 0x08;
         /// Overlapped Mode Service Request.
         const SRV = 0x10;
-        /// Drive Write Fault Error (*does not set ERR*).
-        const DWF = 0x20;
+        /// Drive Fault Error (*does not set ERR*).
+        const DF = 0x20;
         /// Clear when drive is spun down, or after an error.
         const DRDY = 0x40;
         /// Indicates the drive is preparing to send/receive data.
@@ -217,11 +227,14 @@ impl Drive {
         starting_sector: LogicalBlockAddress,
         mut sector_count: u32,
         buffer: &mut [u8],
-    ) -> Result<(), ()> {
+    ) -> Result<(), ReadError> {
         self.select();
         if self.lba48_enabled {
-            if sector_count > 2 << 16 || starting_sector.to48().is_none() {
-                return Err(());
+            if sector_count > 2 << 16 {
+                return Err(ReadError::SectorCountTooLarge);
+            }
+            if starting_sector.to48().is_none() {
+                return Err(ReadError::FirstSectorOutOfRange);
             }
 
             if sector_count as usize > 2 * buffer.len() / (LOGICAL_SECTOR_SIZE as usize) {
@@ -234,8 +247,11 @@ impl Drive {
 
             self.read_into_lba48(starting_sector, sector_count as u16, buffer)
         } else {
-            if sector_count > 2 << 8 || starting_sector.to28().is_none() {
-                return Err(());
+            if sector_count > 2 << 8 {
+                return Err(ReadError::SectorCountTooLarge);
+            }
+            if starting_sector.to28().is_none() {
+                return Err(ReadError::FirstSectorOutOfRange);
             }
 
             if sector_count as usize > 2 * buffer.len() / (LOGICAL_SECTOR_SIZE as usize) {
@@ -255,7 +271,7 @@ impl Drive {
         starting_sector: LogicalBlockAddress,
         sector_count: u16,
         buffer: &mut [u8],
-    ) -> Result<(), ()> {
+    ) -> Result<(), ReadError> {
         let (low, mid, high) = starting_sector.to48().unwrap();
 
         io::outb(self.controller.command_block() + PORT_LBA_LOW, low as u8);
@@ -290,6 +306,23 @@ impl Drive {
             status = self.controller.read_status();
         }
 
+        if status.contains(StatusRegister::DF) {
+            return Err(ReadError::DeviceFault);
+        }
+
+        if status.contains(StatusRegister::ERR) {
+            let error = self.controller.read_error();
+            if error.contains(ErrorRegister::UNC) {
+                return Err(ReadError::UncorrectableError);
+            }
+            if error.contains(ErrorRegister::BBK) {
+                return Err(ReadError::BadBlock);
+            }
+            if error.contains(ErrorRegister::IDNF) {
+                return Err(ReadError::IdNotFound);
+            }
+        }
+
         for i in 0..sector_count {
             for j in 0..(LOGICAL_SECTOR_SIZE / 2) {
                 let word = io::inw(self.controller.command_block() + PORT_DATA);
@@ -307,7 +340,7 @@ impl Drive {
         starting_sector: LogicalBlockAddress,
         sector_count: u8,
         buffer: &mut [u8],
-    ) -> Result<(), ()> {
+    ) -> Result<(), ReadError> {
         let (low, mid, high, nibble) = starting_sector.to28_unchecked();
 
         let old = io::inb(self.controller.command_block() + PORT_DEVICE);
@@ -329,6 +362,23 @@ impl Drive {
         let mut status = self.controller.read_status();
         while status.contains(StatusRegister::BSY) {
             status = self.controller.read_status();
+        }
+
+        if status.contains(StatusRegister::DF) {
+            return Err(ReadError::DeviceFault);
+        }
+
+        if status.contains(StatusRegister::ERR) {
+            let error = self.controller.read_error();
+            if error.contains(ErrorRegister::UNC) {
+                return Err(ReadError::UncorrectableError);
+            }
+            if error.contains(ErrorRegister::BBK) {
+                return Err(ReadError::BadBlock);
+            }
+            if error.contains(ErrorRegister::IDNF) {
+                return Err(ReadError::IdNotFound);
+            }
         }
 
         for i in 0..sector_count {
