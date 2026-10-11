@@ -5,10 +5,10 @@ BUILD_DIR = ../target/${TARGET}/${BUILD_MODE}
 .PHONY: debug-build release-build build iso all run clean doc
 
 debug-build:
-	cargo build
+	cargo build -Zjson-target-spec
 
 release-build:
-	cargo build --release
+	cargo build --release -Zjson-target-spec
 
 build: ${BUILD_MODE}-build
 
