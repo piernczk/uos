@@ -10,14 +10,12 @@ use ukern::{keyboard, terminal, arch};
 
 /// Panic handler.
 #[panic_handler]
-#[no_mangle]
-extern "C" fn rust_begin_panic(_info: &PanicInfo<'_>) -> ! {
-    intrinsics::abort();
+fn rust_begin_panic(_info: &PanicInfo<'_>) -> ! {
+    intrinsics::abort_immediate()
 }
 
 /// eh.
 #[lang = "eh_personality"]
-#[no_mangle]
 extern "C" fn rust_eh_personality() {}
 
 /// The kernel couldn't compile without it so I just left it here.
@@ -43,7 +41,7 @@ fn kernel_main() {
     terminal::print("uOS\n");
     loop {
         let action = keyboard::key_action();
-        if let Some(c) = action.map(&mut kbd_state) {
+        if let Ok(c) = action.map() {
             terminal::put_char(c);
         }
         keyboard::set_led_state(kbd_state.into());
