@@ -3,6 +3,7 @@
 #![crate_type = "lib"]
 
 pub mod arch;
+pub mod drive;
 pub mod io;
 pub mod keyboard;
 pub mod ps2;

@@ -4,8 +4,6 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 use crate::io;
 
-pub const LOGICAL_SECTOR_SIZE: u64 = 512;
-
 pub const PORT_DATA: io::IoPort = 0x00;
 pub const PORT_ERROR: io::IoPort = 0x01;
 pub const PORT_FEATURES: io::IoPort = 0x01;
@@ -219,6 +217,10 @@ impl Drive {
             return Err(DriveInitError::LbaNotSupported(controller, drive));
         }
 
+        if result.is_lba48_supported() {
+            result.lba48_enabled = true;
+        }
+
         Ok(result)
     }
 
@@ -227,7 +229,11 @@ impl Drive {
         starting_sector: LogicalBlockAddress,
         mut sector_count: u32,
         buffer: &mut [u8],
-    ) -> Result<(), ReadError> {
+    ) -> Result<u32, ReadError> {
+        if sector_count == 0 {
+            return Ok(0);
+        }
+
         self.select();
         if self.lba48_enabled {
             if sector_count > 2 << 16 {
@@ -237,15 +243,21 @@ impl Drive {
                 return Err(ReadError::FirstSectorOutOfRange);
             }
 
-            if sector_count as usize > 2 * buffer.len() / (LOGICAL_SECTOR_SIZE as usize) {
-                sector_count = (2 * buffer.len() / (LOGICAL_SECTOR_SIZE as usize)) as u32;
+            if sector_count as usize > buffer.len() / (2 * self.logical_sector_size() as usize) {
+                sector_count = (buffer.len() / (2 * self.logical_sector_size() as usize)) as u32;
+            }
+
+            if u64::from(starting_sector) + sector_count as u64 > self.logical_sectors_count() {
+                sector_count = (self.logical_sectors_count() - u64::from(starting_sector)) as u32;
             }
 
             if sector_count == 2 << 16 {
-                sector_count = 0;
+                self.read_into_lba48(starting_sector, 0, buffer)
+                    .map(|_| 2 << 16)
+            } else {
+                self.read_into_lba48(starting_sector, sector_count as u16, buffer)
+                    .map(|_| sector_count)
             }
-
-            self.read_into_lba48(starting_sector, sector_count as u16, buffer)
         } else {
             if sector_count > 2 << 8 {
                 return Err(ReadError::SectorCountTooLarge);
@@ -254,15 +266,21 @@ impl Drive {
                 return Err(ReadError::FirstSectorOutOfRange);
             }
 
-            if sector_count as usize > 2 * buffer.len() / (LOGICAL_SECTOR_SIZE as usize) {
-                sector_count = (2 * buffer.len() / (LOGICAL_SECTOR_SIZE as usize)) as u32;
+            if sector_count as usize > buffer.len() / (2 * self.logical_sector_size() as usize) {
+                sector_count = (buffer.len() / (2 * self.logical_sector_size() as usize)) as u32;
+            }
+
+            if u64::from(starting_sector) + sector_count as u64 > self.logical_sectors_count() {
+                sector_count = (self.logical_sectors_count() - u64::from(starting_sector)) as u32;
             }
 
             if sector_count == 2 << 8 {
-                sector_count = 0;
+                self.read_into_lba28(starting_sector, 0, buffer)
+                    .map(|_| 2 << 16)
+            } else {
+                self.read_into_lba28(starting_sector, sector_count as u8, buffer)
+                    .map(|_| sector_count)
             }
-
-            self.read_into_lba28(starting_sector, sector_count as u8, buffer)
         }
     }
 
@@ -324,9 +342,9 @@ impl Drive {
         }
 
         for i in 0..sector_count {
-            for j in 0..(LOGICAL_SECTOR_SIZE / 2) {
+            for j in 0..self.logical_sector_size() {
                 let word = io::inw(self.controller.command_block() + PORT_DATA);
-                let idx = ((i as u64) * LOGICAL_SECTOR_SIZE + j * 2) as usize;
+                let idx = ((i as u32) * 2 * (self.logical_sector_size() + j)) as usize;
                 buffer[idx] = word as u8;
                 buffer[idx + 1] = (word >> 8) as u8;
             }
@@ -382,15 +400,75 @@ impl Drive {
         }
 
         for i in 0..sector_count {
-            for j in 0..(LOGICAL_SECTOR_SIZE / 2) {
+            for j in 0..self.logical_sector_size() {
                 let word = io::inw(self.controller.command_block() + PORT_DATA);
-                let idx = ((i as u64) * LOGICAL_SECTOR_SIZE + j * 2) as usize;
+                let idx = ((i as u32) * 2 * (self.logical_sector_size() + j)) as usize;
                 buffer[idx] = word as u8;
                 buffer[idx + 1] = (word >> 8) as u8;
             }
         }
 
         Ok(())
+    }
+
+    pub fn is_lba48_supported(&self) -> bool {
+        self.identify_data[83] & (1 << 10) != 0
+    }
+
+    pub fn is_lba48_enabled(&self) -> bool {
+        self.lba48_enabled
+    }
+
+    pub fn set_lba48(&mut self, lba48: bool) -> bool {
+        self.lba48_enabled = self.is_lba48_enabled() && lba48;
+        self.lba48_enabled
+    }
+
+    // Logical sector size in 2-byte words.
+    pub fn logical_sector_size(&self) -> u32 {
+        if self.identify_data[106] & ((1 << 12) | (1 << 14)) == (1 << 12) | (1 << 14)
+            && self.identify_data[106] & (1 << 15) == 0
+        {
+            (self.identify_data[117] as u32) | ((self.identify_data[118] as u32) << 16)
+        } else {
+            256
+        }
+    }
+
+    // Physical sector size in 2-byte words.
+    pub fn physical_sector_size(&self) -> u32 {
+        if self.identify_data[106] & ((1 << 12) | (1 << 13)) == (1 << 12) | (1 << 13)
+            && self.identify_data[106] & (1 << 15) == 0
+        {
+            2u32.pow((self.identify_data[106] as u32) & 0b1111) * self.logical_sector_size()
+        } else {
+            self.logical_sector_size()
+        }
+    }
+
+    pub fn logical_sectors_count(&self) -> u64 {
+        if self.lba48_enabled {
+            self.logical_sectors_count_lba48().unwrap()
+        } else {
+            self.logical_sectors_count_lba24() as u64
+        }
+    }
+
+    pub fn logical_sectors_count_lba24(&self) -> u32 {
+        (self.identify_data[60] as u32) | ((self.identify_data[61] as u32) << 16)
+    }
+
+    pub fn logical_sectors_count_lba48(&self) -> Option<u64> {
+        if self.is_lba48_supported() {
+            Some(
+                (self.identify_data[100] as u64)
+                    | ((self.identify_data[101] as u64) << 16)
+                    | ((self.identify_data[102] as u64) << 32)
+                    | ((self.identify_data[103] as u64) << 48),
+            )
+        } else {
+            None
+        }
     }
 
     fn select(&self) {
