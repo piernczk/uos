@@ -24,8 +24,8 @@ doc:
 
 all: iso doc
 run: iso
-	qemu-system-i386 -audiodev pa,id=pa -machine pcspk-audiodev=pa -drive format=raw,file=${BUILD_DIR}/ukern.iso
-debug:
+	qemu-system-i386 -audiodev pa,id=pa -machine pcspk-audiodev=pa -drive id=ukern,format=raw,file=${BUILD_DIR}/ukern.iso,if=ide -drive id=disk,file=${BUILD_DIR}/disk.img,format=raw,if=ide
+debug: iso
 	qemu-system-i386 -s -S -audiodev pa,id=pa -machine pcspk-audiodev=pa -drive format=raw,file=${BUILD_DIR}/ukern.iso &
 	gdb -x gdbinit
 

@@ -1,6 +1,9 @@
 target remote :1234
 set disassembly-flavor intel
 symbol-file ../target/i686-unknown-none/debug/ukern
+set print asm-demangle on
 dir src
 layout src
 focus cmd
+b ukern::kernel_main
+l
